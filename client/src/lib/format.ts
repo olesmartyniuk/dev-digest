@@ -1,3 +1,10 @@
+/**
+ * Run cost/token formatting, shared by the cost badge and the run trace.
+ *
+ * One home so the same numbers can't render two ways — the trace drawer used to
+ * print `12k→1.5k` while the badge printed `8.2K→1.3K` for the same field.
+ */
+
 /** Formats a run's USD cost. `null` covers every "no data" case in one place:
  *  never reviewed, an unpriced model, or a failed/cancelled run. */
 export function formatCostUsd(costUsd: number | null | undefined): string {
@@ -6,7 +13,7 @@ export function formatCostUsd(costUsd: number | null | undefined): string {
   return `$${costUsd.toFixed(3)}`;
 }
 
-/** Token in→out summary for the full badge (e.g. "8.2K→1.3K"). */
+/** Token in→out summary (e.g. "8.2K→1.3K"). */
 export function formatTokenPair(
   tokensIn: number | null | undefined,
   tokensOut: number | null | undefined,

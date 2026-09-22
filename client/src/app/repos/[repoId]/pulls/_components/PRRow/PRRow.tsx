@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
-import type { PrMeta } from "@/lib/types";
+import type { PrMeta } from "@devdigest/shared";
 import { FindingsCell } from "../FindingsCell";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";

@@ -2,10 +2,9 @@
 
 import React from "react";
 import { SectionLabel, Button } from "@devdigest/ui";
-import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
-import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
-import { notify } from "@/lib/toast";
+import { DiffViewer } from "@/components/diff-viewer";
 import type { PrFile } from "@devdigest/shared";
+import { useDiffComments } from "./useDiffComments";
 
 interface DiffTabProps {
   prId: string | null;
@@ -16,29 +15,10 @@ interface DiffTabProps {
 }
 
 export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
-  const { data: comments } = usePrComments(prId);
-  const create = useCreatePrComment(prId);
-  // Comments start hidden so the diff is clean by default — toggle to reveal.
-  const [showComments, setShowComments] = React.useState(false);
-
-  const commentCount = comments?.length ?? 0;
-
-  const commenting: DiffCommentApi = {
-    comments: comments ?? [],
-    canComment: !!canComment && !!prId,
-    showComments,
-    posting: create.isPending,
-    onSubmit: async (input) => {
-      try {
-        const res = await create.mutateAsync(input);
-        setShowComments(true); // a just-posted comment shouldn't stay hidden
-        return res;
-      } catch (err) {
-        notify.error(err instanceof Error ? err.message : "Couldn't post the comment to GitHub.");
-        throw err;
-      }
-    },
-  };
+  const { commenting, commentCount, showComments, toggleComments } = useDiffComments(
+    prId,
+    canComment,
+  );
 
   return (
     <section>
@@ -50,7 +30,7 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
               kind="ghost"
               size="sm"
               icon={showComments ? "EyeOff" : "Eye"}
-              onClick={() => setShowComments((v) => !v)}
+              onClick={toggleComments}
             >
               {showComments ? "Hide comments" : "Show comments"} ({commentCount})
             </Button>

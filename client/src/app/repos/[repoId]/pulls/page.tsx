@@ -3,7 +3,7 @@
 "use client";
 
 import React from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   Skeleton,
@@ -17,48 +17,31 @@ import { usePulls, useRefreshRepo } from "@/lib/hooks";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
 import { COLUMN_KEYS, SKELETON_ROWS } from "./constants";
+import { countPulls, filterAndSortPulls } from "./helpers";
 import { s } from "./styles";
 import { PRRow } from "./_components/PRRow";
 import { FilterBar } from "./_components/FilterBar";
-
-/** Open PRs carry a derived review status; everything else is merged/closed. */
-const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
+import { usePullsFilters } from "./_hooks/usePullsFilters";
 
 export default function PullsPage() {
   const t = useTranslations("prReview");
   const params = useParams<{ repoId: string }>();
   const repoId = params.repoId;
-  const search = useSearchParams();
-  const router = useRouter();
   const { activeRepo } = useActiveRepo();
   const repoNotFound = useRepoNotFound(repoId);
   const { data: pulls, isLoading, isError, error, refetch } = usePulls(repoId);
   const refresh = useRefreshRepo();
+  const { status, setStatus, query, setQuery, sort, setSort } = usePullsFilters(repoId);
 
-  // Default to "needs review" — the most actionable filter on open.
-  const status = search.get("status") ?? "needs_review";
-  const setStatus = (k: string) => {
-    const sp = new URLSearchParams(search.toString());
-    sp.set("status", k); // always explicit so "all" sticks over the needs_review default
-    router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
-  };
-
-  const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState("newest");
-
-  const q = query.trim().toLowerCase();
-  const filtered = (pulls ?? [])
-    .filter((p) => status === "all" || p.status === status)
-    .filter((p) => !q || p.title.toLowerCase().includes(q) || String(p.number).includes(q))
-    .slice()
-    .sort((a, b) => {
-      const ta = Date.parse(a.updated_at ?? "") || 0;
-      const tb = Date.parse(b.updated_at ?? "") || 0;
-      return sort === "oldest" ? ta - tb : tb - ta;
-    });
+  const filtered = React.useMemo(
+    () => filterAndSortPulls(pulls ?? [], { status, query, sort }),
+    [pulls, status, query, sort],
+  );
+  const { open: openCount, needsReview: needsReviewCount } = React.useMemo(
+    () => countPulls(pulls ?? []),
+    [pulls],
+  );
   const repoName = activeRepo?.full_name ?? repoId;
-  const openCount = (pulls ?? []).filter((p) => OPEN_STATUSES.has(p.status)).length;
-  const needsReviewCount = (pulls ?? []).filter((p) => p.status === "needs_review").length;
 
   // Stale/unknown :repoId → friendly empty state instead of a 404 error.
   if (repoNotFound) {
