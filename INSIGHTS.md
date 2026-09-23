@@ -35,6 +35,8 @@ belongs here.
 
 - **2026-09-17** — Severity is keyed UPPERCASE everywhere it crosses a package boundary — the `Severity` Zod enum, the `AgentStats.findings_by_severity` contract, and the client's pre-declared `PrRowView.findings` — with exactly one exception: `rollupSeverities` returns `{critical, warning, suggestion}`. A new severity-tallying contract must use the uppercase keys and convert at that one helper rather than propagating its casing; and the lowercase severity strings a grep does turn up belong to `CiFailOn`, an unrelated gate-policy enum, so matching them is not evidence that lowercase is the convention. Evidence: `server/src/vendor/shared/contracts/findings.ts:11`, `server/src/vendor/shared/contracts/observability.ts:111-115`, `client/src/lib/types.ts:45`, `server/src/modules/pulls/status.ts:16-31`.
 
+- **2026-09-22** — L02's skills feature needed no `@devdigest/shared` contract edits at all: `SkillSource` already had `'imported_url'` alongside `'manual'`/`'extracted'`/`'community'`, so the client's file/paste import (which does no server-side fetch — it's read via `FileReader` in the browser and posted as text) reuses `'imported_url'` rather than adding a new `'imported_file'` literal. This keeps the two vendored copies of `knowledge.ts` in sync with zero edits, at the cost of the source label being one step removed from literally true (no URL was ever fetched) — a future session adding a real server-side URL-fetch import must not assume every `source: 'imported_url'` row was actually fetched server-side. Evidence: `server/src/vendor/shared/contracts/knowledge.ts:118`, `server/src/modules/skills/routes.ts:22-26`.
+
 ## Tool & Library Notes
 
 - **2026-09-16** — A DB-backed server test not named `*.it.test.ts` runs in the unit lane and fails there without Docker; the split is by filename, not by content. Evidence: `TESTING.md:79`.
@@ -44,6 +46,8 @@ belongs here.
 ## Session Notes
 
 - **2026-09-16** — Added `CLAUDE.md` maps plus `docs/` and `specs/` to each package, and moved the deep sections out of the package READMEs into `docs/`. Entry points: [CLAUDE.md](CLAUDE.md), [docs/architecture.md](docs/architecture.md), [specs/review-flow.md](specs/review-flow.md).
+
+- **2026-09-22** — L02 Skills feature: added the `server/src/modules/skills/` CRUD module, wired an agent's linked+enabled skills into the prompt via one `buildSkillsDigest` call in the run executor, and added the client's `/skills` Skills Lab page plus the Agent Editor's Skills tab. Most of the supporting scaffolding (DB tables, `@devdigest/shared` contracts, the `reviewer-core` `skills` prompt slot, the agent-side `/agents/:id/skills` link routes, and the client's run-trace Skills prompt block) already existed before this session — this lesson only had to feed it. Entry points: [server/src/modules/skills/routes.ts](server/src/modules/skills/routes.ts), [server/src/modules/reviews/run-executor.ts](server/src/modules/reviews/run-executor.ts), [client/src/app/skills/page.tsx](client/src/app/skills/page.tsx), [docs/agent-prompts/skills/README.md](docs/agent-prompts/skills/README.md).
 
 ## Open Questions
 

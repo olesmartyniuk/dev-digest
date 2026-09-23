@@ -37,6 +37,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-17** — On a failed/cancelled run, `ReviewRunExecutor` persists `tokensIn: 0, tokensOut: 0` but `costUsd: null` — not `0` — even though neither reflects any real partial usage from a cancelled map-reduce run. This asymmetry is deliberate: the client's "no cost data" rule keys off `costUsd == null`, so zeroing it to match tokens would make a failed run render a real `$0.00` badge instead of a dash. Evidence: `server/src/modules/reviews/run-executor.ts:78-87,300-309`.
 
+- **2026-09-22** — The two L02 seed agents (`Test Quality Reviewer`, `API Contract Reviewer`) deliberately have a GENERIC `system_prompt` — no itemized checklist — while the specific, sharp checklist (uncovered branches/corner cases/over-mocking/flakiness; route/response/status-code/endpoint-removal) lives entirely in the seeded/importable SKILL body instead. If the checklist had stayed in the system prompt, the lesson's skill-on-vs-skill-off control experiment would show no behavioral difference, since the agent would already catch the target issue without any skill attached. Only `test-quality-rubric` is seeded (enabled, linked); `api-contract-rubric`'s body exists only as a markdown fixture so a real UI import walks the whole preview → vet → attach path instead of a script faking it. Evidence: `server/src/db/seed-prompts.ts:301,368`, `server/src/db/seed.ts:255-259`.
+
 ## Tool & Library Notes
 
 - **2026-09-16** — `TiktokenTokenizer` latches to a `length / 4` heuristic for the rest of the process after a single BPE load failure, so repo-map token budgets can be wrong with nothing in the log saying so. Evidence: `server/src/adapters/tokenizer/index.ts:33-36`.

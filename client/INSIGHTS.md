@@ -25,6 +25,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-22** — `src/components/showcase/` reads as dead code to any name-based search: `Showcase.tsx` exports a function called `Gallery`, so grepping for the component or folder name turns up no consumer anywhere in `src/`. It is imported as `Gallery` by the smoke test and rendered in both themes, and it is also the only app-side consumer of the chart primitives — deleting it as unused takes the smoke test with it. Evidence: `client/src/components/showcase/Showcase.tsx:59`, `client/src/test/smoke.test.tsx:4`.
 
+- **2026-09-22** — Adding a new tab to `AgentEditor`'s `TABS` array is not sufficient to make it reachable: `useAgentTab`'s `?tab=` reader keeps its own separate `VALID_TABS` allowlist and silently falls back to `"config"` for anything not on it, with no error either way — the new tab simply never renders no matter what the URL says. Any future tab (Evals/Stats/CI) must be added to both `AgentEditor/constants.ts`'s `TABS` and this hook's `VALID_TABS`. Evidence: `client/src/app/agents/[id]/_hooks/useAgentTab.ts:7`, `client/src/app/agents/[id]/_components/AgentEditor/constants.ts:11-14`.
+
 ## Codebase Patterns
 
 - **2026-09-16** — Routes are keyed by PR *number* while every PR API is keyed by the row uuid, so the detail page resolves number → id through the cached pulls list before fetching anything; a component that fetches straight from the route param will 404. Evidence: `client/src/app/repos/[repoId]/pulls/[number]/page.tsx:32-36`.
@@ -34,6 +36,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-09-22** — The client imports only *types* from `@devdigest/shared`, so zod is absent from every built chunk; importing a schema *value* — `Provider.options` to derive a dropdown from the contract, say — would pull the whole zod runtime into that route's bundle to save three literals. Restate such lists as `as const satisfies readonly Provider[]`, which keeps them checked against the contract with no runtime import. Evidence: `client/src/app/agents/constants.ts:16`.
 
 - **2026-09-22** — Severity → colour already has an upstream source of truth in the vendored design system, which is invisible from feature code: `tokens.ts` maps `SUGGESTION` to `var(--sugg)`. Four separate local severity maps had accumulated and one had already drifted to `var(--accent)` for suggestions. Ordering and colour now live once in `src/lib/severity.ts` — extend that, and check `tokens.ts` before inventing a mapping. Evidence: `client/src/vendor/ui/primitives/tokens.ts:12`, `client/src/lib/severity.ts:30`.
+
+- **2026-09-22** — `src/vendor/ui/nav.ts`'s sidebar `NAV` registry sits under the vendored `src/vendor/ui/**` tree that `CLAUDE.md` marks "do not restructure", but it is plain per-lesson data (one object per top-level route) meant to be extended, not layer code — the pre-existing `"agents"` entry is the precedent, and L02 added a `"skills"` entry the same way. A future lesson adding its own top-level route should add its `NavItemDef` here rather than assuming the file is off-limits or inventing a second registry elsewhere. Evidence: `client/src/vendor/ui/nav.ts:25-27`.
 
 ## Tool & Library Notes
 

@@ -8,7 +8,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { TEST_QUALITY_RUBRIC } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -20,11 +23,16 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and five built-in agents (General + Security +
+ * Performance + Test Quality + API Contract), all on the default
+ * openrouter/deepseek-v4-flash provider+model. One rubric skill
+ * ("Test Quality Rubric") is seeded enabled and linked to Test Quality
+ * Reviewer; the "API Contract Rubric" skill is deliberately NOT seeded here —
+ * see `docs/agent-prompts/skills/README.md` for why (it's meant to be
+ * imported through the Skills Lab UI to exercise that path end to end).
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -177,7 +185,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (the five starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -213,6 +221,28 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks whether new/changed tests cover branches, edge cases, and avoid over-mocking or flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Flags breaking changes to route/API request and response contracts.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -220,6 +250,47 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- built-in skill (L02) ----
+  // "Test Quality Rubric" is seeded enabled and linked to Test Quality
+  // Reviewer, so the Test Quality control experiment reproduces immediately
+  // after `pnpm db:seed`. "API Contract Rubric" is intentionally left
+  // unseeded — see docs/agent-prompts/skills/README.md.
+  let [testQualityRubric] = await db
+    .select()
+    .from(t.skills)
+    .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, 'Test Quality Rubric')));
+  if (!testQualityRubric) {
+    [testQualityRubric] = await db
+      .insert(t.skills)
+      .values({
+        workspaceId,
+        name: 'Test Quality Rubric',
+        description: 'Checklist for uncovered branches, missed corner cases, over-mocking, and flakiness.',
+        type: 'rubric',
+        source: 'manual',
+        body: TEST_QUALITY_RUBRIC,
+        enabled: true,
+        version: 1,
+      })
+      .returning();
+    await db.insert(t.skillVersions).values({
+      skillId: testQualityRubric!.id,
+      version: 1,
+      body: testQualityRubric!.body,
+    });
+  }
+
+  const [testQualityReviewer] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Test Quality Reviewer')));
+  if (testQualityReviewer && testQualityRubric) {
+    await db
+      .insert(t.agentSkills)
+      .values({ agentId: testQualityReviewer.id, skillId: testQualityRubric.id, order: 0 })
+      .onConflictDoNothing();
   }
 
   return { workspaceId, userId };

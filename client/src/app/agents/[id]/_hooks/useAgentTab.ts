@@ -4,7 +4,7 @@ import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 /** Tabs the editor knows how to render; anything else falls back to config. */
-const VALID_TABS = ["config"];
+const VALID_TABS = ["config", "skills"];
 
 /** `?tab=` state for the agent editor, guarded against unknown values. */
 export function useAgentTab(agentId: string) {

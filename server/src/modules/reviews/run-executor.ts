@@ -182,6 +182,12 @@ export class ReviewRunExecutor {
       const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
+      // Skills — independent of the repo-intel toggle (a separate concern):
+      // resolve this agent's linked, ENABLED skills (in `order`) into bodies.
+      // Best-effort, like the repo-intel digests above; omitted when there are
+      // none so the prompt stays byte-identical to the no-skills baseline.
+      const skillsDigest = await this.buildSkillsDigest(agent.id, runLog);
+
       const task = taskLine(pull) + rankNote;
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
@@ -201,6 +207,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // L02 — this agent's linked, enabled skill bodies, in order.
+        ...(skillsDigest ? { skills: skillsDigest } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -401,6 +409,32 @@ export class ReviewRunExecutor {
       return `\n\n${hot.length} of ${changedFiles.length} changed file(s) are in the top 5% most-depended-on (high blast risk) — prioritise their correctness.`;
     } catch {
       return '';
+    }
+  }
+
+  /**
+   * L02 — resolve this agent's linked skills into prompt-ready bodies, in
+   * `order`. Filters on the SKILL's own `enabled` flag (not just the link) —
+   * a linked-but-unvetted (e.g. freshly imported) skill contributes nothing,
+   * so toggling a skill off makes it disappear from the prompt AND the trace
+   * without having to unlink it. Best-effort like the repo-intel digests
+   * above: any failure degrades to "no skills" rather than failing the run.
+   */
+  private async buildSkillsDigest(
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<string[] | undefined> {
+    try {
+      const links = await this.container.agentsRepo.linkedSkills(agentId);
+      const active = links.filter((l) => l.skill.enabled);
+      if (active.length === 0) return undefined;
+      const bodies = active.map((l) => l.skill.body);
+      const tokens = bodies.reduce((n, b) => n + this.container.tokenizer.count(b), 0);
+      runLog.info(`skills: ${active.length} skill(s) attached, ~${tokens} token(s)`);
+      return bodies;
+    } catch (err) {
+      runLog.info(`skills digest: failed — ${(err as Error).message}`);
+      return undefined;
     }
   }
 

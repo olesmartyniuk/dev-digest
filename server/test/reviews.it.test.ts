@@ -229,6 +229,49 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('L02: an enabled, linked skill is threaded into the prompt trace; disabling it removes it', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Skilled Reviewer', provider: 'openai', model: 'gpt-4.1', system_prompt: 'rev' },
+      })
+    ).json();
+    const skill = (
+      await app.inject({
+        method: 'POST',
+        url: '/skills',
+        payload: { name: 'Coverage Rubric', type: 'rubric', body: '# Rubric\nCheck branch coverage.' },
+      })
+    ).json();
+    await app.inject({
+      method: 'POST',
+      url: `/agents/${agent.id}/skills`,
+      payload: { skill_id: skill.id },
+    });
+
+    // ---- run 1: skill enabled and linked → shows up in the prompt trace ----
+    const runId1 = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const trace1 = (await app.inject({ method: 'GET', url: `/runs/${runId1}/trace` })).json();
+    expect(trace1.prompt_assembly.skills).toContain('Check branch coverage.');
+
+    // ---- run 2: same link, but the skill itself is disabled → omitted ----
+    await app.inject({ method: 'PUT', url: `/skills/${skill.id}`, payload: { enabled: false } });
+    const runId2 = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    const trace2 = (await app.inject({ method: 'GET', url: `/runs/${runId2}/trace` })).json();
+    expect(trace2.prompt_assembly.skills).toBeNull();
+
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
