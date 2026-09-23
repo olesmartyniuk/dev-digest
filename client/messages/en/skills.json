@@ -7,6 +7,7 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "createFromScratch": "Create from scratch",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
@@ -20,6 +21,22 @@
       "title": "Select a skill",
       "body": "Pick a skill on the left to preview its body."
     }
+  },
+  "fields": {
+    "name": "Name",
+    "namePlaceholder": "pr-quality-rubric",
+    "description": "Description",
+    "descriptionPlaceholder": "What this skill checks",
+    "type": "Type"
+  },
+  "create": {
+    "title": "Create skill",
+    "subtitle": "A skill is a reusable markdown directive you can attach to any agent.",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "defaultName": "New Skill",
+    "defaultBody": "# Rule\nDescribe the rule…"
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -38,6 +55,9 @@
       "url": "From URL",
       "community": "Community"
     },
+    "cancel": "Cancel",
+    "chooseFile": "Choose file…",
+    "previewLabel": "Preview",
     "importFailed": "Import failed"
   },
   "file": {
@@ -92,6 +112,8 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved (v{version})",
     "edit": "Edit",
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",

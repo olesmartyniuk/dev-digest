@@ -17,7 +17,7 @@ import type {
   PrDetail,
   SpecFile,
   IndexStatus,
-} from "../types";
+} from "@devdigest/shared";
 
 // ---- Settings (F1: GET/PUT /settings, POST /settings/test-connection) ----
 export function useSettings() {

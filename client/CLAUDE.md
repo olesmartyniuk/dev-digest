@@ -15,6 +15,7 @@ pnpm dev        # :3000
 pnpm build
 pnpm test       # vitest + jsdom, fetch mocked — no API, no browser needed
 pnpm typecheck
+pnpm lint       # eslint (next/core-web-vitals + next/typescript); src/vendor is ignored
 ```
 
 `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`) points at the API.
@@ -25,10 +26,12 @@ pnpm typecheck
 |------|------|
 | `src/app/<route>/page.tsx` | routes; pages stay thin |
 | `src/app/<route>/_components/<Name>/` | feature components, colocated with the route that uses them |
+| `src/app/<route>/_hooks/` | that route's orchestration hooks (queries + URL state), so `page.tsx` is layout |
 | `src/components/` | cross-route components (app shell, diff viewer, page shell, mermaid) |
 | `src/lib/api.ts` | the only `fetch` wrapper; normalizes errors to `ApiError` |
 | `src/lib/hooks/` | every TanStack Query hook, split by domain (`core`, `agents`, `reviews`, `trace`, `repo-intel`) |
-| `src/lib/` | providers, theme, toast, repo context, types, formatting helpers |
+| `src/lib/severity.ts` · `src/lib/format.ts` | severity ordering/colour and run cost/token formatting — one home each, shared across routes |
+| `src/lib/` | providers, theme, toast, repo context, formatting helpers |
 | `src/vendor/ui/` | `@devdigest/ui` design system (tokens → primitives → kit → charts → shell) |
 | `src/vendor/shared/` | `@devdigest/shared` Zod contracts (vendored) |
 | `messages/en/*.json` | next-intl namespaces, one per feature area |
@@ -36,6 +39,8 @@ pnpm typecheck
 ## Non-default conventions
 
 - **Colocation over shared folders.** A feature component is a folder with `Name.tsx` + `index.ts` and, as needed, `constants.ts`, `helpers.ts`, `styles.ts`, `Name.test.tsx`. Import it via its `index.ts`.
+- **Components render; hooks orchestrate.** Data fetching, derived state and URL writes belong in a hook (`_hooks/` for a route, `useX.ts` beside the component otherwise), not in the component body. `components/app-shell` + `useShellContext` is the reference shape.
+- **Types come from `@devdigest/shared` directly** — there is no `lib/types` re-export layer.
 - **Always import UI from the `@devdigest/ui` barrel**, never from a layer file inside `src/vendor/ui`.
 - **All network access goes through `src/lib/api.ts`**, wrapped in a hook under `src/lib/hooks/`. No bare `fetch` in a component.
 - Errors branch on `ApiError.status` / `code` to pick the UX: toast, inline, or full-screen. `code: "network_error"` (status 0) means the API is unreachable.

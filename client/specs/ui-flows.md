@@ -47,6 +47,17 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - Model lists come from `/agents/:id/models` or `/providers/:id/models` and degrade to empty when no key is configured — the editor must stay usable.
 - Saving creates a new agent version; history is available.
 
+## `/repos/:repoId/conventions` — Conventions Extractor
+
+- Data: `GET /repos/:id/conventions`; the scan is `POST /repos/:id/conventions/extract`.
+- Every candidate is shown with the evidence it was verified against — `file:line` plus the real snippet — because that citation, not the model's confidence, is what the user is judging.
+- A candidate can be accepted, un-accepted, rejected, or have its rule text and category edited in place (`PATCH /conventions/:id`). Accept and reject are both reversible; nothing here is a one-way door.
+- Undecided candidates sort first, then accepted, then rejected; within a bucket, strongest evidence first.
+- After a scan the page reports what it sampled, what was proposed, what survived, and why the rest did not — a thin result must be explainable, not silent.
+- Re-scanning preserves accepted and rejected rows and does not re-ask about a rule the user already judged.
+- **Create skill** opens the merged draft from `GET /repos/:id/conventions/skill-draft`. Name, description, enabled state and the whole markdown body are editable before saving via `POST /repos/:id/conventions/skill`, which can also attach the new skill to agents.
+- An unknown `repoId` renders the repo-not-found state; a repo that has not finished cloning fails the scan with that reason rather than an empty list.
+
 ## `/settings/:section`
 
 - `api-keys` stores provider keys and the GitHub token. Keys are write-only from the UI: the app shows whether a key is present, never its value.
