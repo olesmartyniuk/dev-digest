@@ -10,6 +10,10 @@
     "runExtraction": "Run extraction",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
+    "acceptAll": "Accept all",
+    "deselectAll": "Deselect all",
+    "createSkill": "Create skill",
+    "acceptedCount": "{accepted} of {total} accepted",
     "empty": {
       "title": "No conventions extracted yet",
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
@@ -17,10 +21,63 @@
     },
     "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
   },
+  "summary": {
+    "line": "Sampled {sampled} source files and {configs} configs · proposed {proposed}, kept {kept} after checking the evidence",
+    "lineCorrected": "{count} citation(s) corrected",
+    "modelSkipped": "Model pass skipped",
+    "dropReason": {
+      "file_not_sampled": "cited a file we never read",
+      "file_missing": "file missing",
+      "snippet_not_found": "snippet not in the file",
+      "low_confidence": "low confidence",
+      "duplicate": "duplicate rule",
+      "already_judged": "already judged"
+    }
+  },
+  "category": {
+    "naming": "Naming",
+    "structure": "Structure",
+    "error_handling": "Error handling",
+    "async": "Async",
+    "typing": "Types",
+    "imports": "Imports",
+    "testing": "Testing",
+    "api": "API",
+    "logging": "Logging",
+    "security": "Security",
+    "formatting": "Formatting"
+  },
   "card": {
     "confidence": "Confidence",
     "accepted": "Accepted",
+    "accept": "Accept",
+    "rejected": "Rejected",
+    "reject": "Reject",
+    "edit": "Edit",
+    "saveEdit": "Save",
+    "cancelEdit": "Cancel",
+    "copyCitation": "Copy file:line",
+    "originConfig": "From config",
+    "originConfigTitle": "Read straight out of a config file — no model involved, so the citation is exact.",
     "accepting": "Accepting…",
     "acceptAsSkill": "Accept as Skill"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "mergedFrom": "Merged from {count} accepted convention(s). Everything below is editable before you save.",
+    "name": "Name",
+    "description": "Description",
+    "enabled": "Enabled",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "body": "Skill body",
+    "bodyHint": "Markdown. Each rule keeps the file:line it was verified against, so the reviewer can cite precedent.",
+    "attachTo": "Attach to agents",
+    "attachToHint": "A skill nothing uses changes no review. You can also attach it later from the Agent editor.",
+    "noAgents": "No agents yet.",
+    "footerNote": "Saved as v1 · added to Skills Lab",
+    "save": "Create skill",
+    "saving": "Creating…",
+    "saveFailed": "Could not create the skill.",
+    "cancel": "Cancel"
   }
 }

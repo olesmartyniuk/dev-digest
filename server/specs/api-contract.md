@@ -58,6 +58,18 @@ Run status values: `running`, `done`, `failed`, `cancelled`. A failed row carrie
 | GET, POST | `/agents/:id/skills` | skill attachments, the surface lesson L02 builds on |
 | GET | `/agents/:id/models`, `/providers/:id/models` | selectable models, degrades to an empty list when no key is configured |
 
+## Conventions
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/repos/:id/conventions` | stored candidates for the repo, oldest first |
+| POST | `/repos/:id/conventions/extract` | scan the clone and return `{conventions, stats, drops}`. Runs inline (one cheap model call over ≤12 sampled files) and is rate-limited to 6/min. Re-runnable: replaces only `pending` rows |
+| PATCH | `/conventions/:id` | accept / reject, or edit the rule text, rationale, category. An empty body is 422 |
+| GET | `/repos/:id/conventions/skill-draft` | the merged markdown draft of the repo's **accepted** conventions |
+| POST | `/repos/:id/conventions/skill` | save the (edited) draft as a Skill with `source: 'extracted'`, optionally linking it to `agent_ids` |
+
+A candidate is persisted only if a code-level check re-read the cited file and found the cited snippet — a wrong line number is corrected rather than dropped, and every rejection is reported in `drops` with its reason. The model never writes to the database.
+
 ## Repo intelligence
 
 | Method | Path | Contract |
