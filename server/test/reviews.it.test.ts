@@ -5,6 +5,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { ReviewRepository } from '../src/modules/reviews/repository.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -358,5 +359,46 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
     await app.close();
+  });
+
+  it('deleteReviewByRunId clears a review (+ findings, cascade) already persisted for a run', async () => {
+    // Regression test: runOneAgent persists `reviews` via insertReview BEFORE
+    // the run is marked done. If a LATER step throws (insertFindings,
+    // markReviewed, saveRunTrace), the catch block must remove that review so
+    // a run left `failed`/`cancelled` never keeps showing a stale verdict
+    // badge (e.g. "approved") in the Review Runs list.
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const repo = new ReviewRepository(pg.handle.db);
+    const runId = await repo.createAgentRun({
+      workspaceId,
+      agentId: null,
+      prId: pr.id,
+      provider: 'openai',
+      model: 'gpt-4.1',
+    });
+    const review = await repo.insertReview({
+      workspaceId,
+      prId: pr.id,
+      agentId: null,
+      runId,
+      kind: 'review',
+      verdict: 'approve',
+      summary: 'looked fine',
+      score: 100,
+      model: 'gpt-4.1',
+    });
+    await repo.insertFindings(review.id, [REVIEW_FIXTURE.findings[0]!]);
+
+    await repo.deleteReviewByRunId(runId);
+
+    expect(await repo.getReview(review.id)).toBeUndefined();
+    const [finding] = await pg.handle.db
+      .select()
+      .from(t.findings)
+      .where(eq(t.findings.reviewId, review.id));
+    expect(finding).toBeUndefined();
+
+    // No-op when nothing is persisted for the run yet — never throws.
+    await expect(repo.deleteReviewByRunId(runId)).resolves.toBeUndefined();
   });
 });

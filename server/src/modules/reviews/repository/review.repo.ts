@@ -92,6 +92,18 @@ export async function deleteReview(
   return rows.length > 0;
 }
 
+/**
+ * Delete any review (+ findings, cascade) already persisted for a run. A run
+ * can throw AFTER `insertReview` succeeded but before it's marked `done` (e.g.
+ * `insertFindings`, `markReviewed`, or `saveRunTrace` failing) — without this
+ * cleanup, the run ends up `failed`/`cancelled` while a stale review with a
+ * real verdict (e.g. "approved") lingers next to it in the Review Runs list.
+ * No-op if no review exists for this run yet.
+ */
+export async function deleteReviewByRunId(db: Db, runId: string): Promise<void> {
+  await db.delete(t.reviews).where(eq(t.reviews.runId, runId));
+}
+
 // ---- finding actions ------------------------------------------------------
 
 export async function getFinding(db: Db, findingId: string): Promise<FindingRow | undefined> {

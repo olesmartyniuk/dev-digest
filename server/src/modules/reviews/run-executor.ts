@@ -305,6 +305,10 @@ export class ReviewRunExecutor {
       const status = cancelled ? 'cancelled' : 'failed';
       const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
       runLog.error(cancelled ? 'Run cancelled by user' : `Run failed: ${msg}`);
+      // insertReview (above) may have already committed a review with a real
+      // verdict before a LATER step in this same try block threw — clean it up
+      // so a failed/cancelled run never leaves a stale "approved" review behind.
+      await this.repo.deleteReviewByRunId(runId).catch(() => undefined);
       await this.repo
         .completeAgentRun(runId, {
           status,
