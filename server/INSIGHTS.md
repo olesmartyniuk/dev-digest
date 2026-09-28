@@ -59,6 +59,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-16** — `RunBus` deliberately keeps a run's event buffer after completion so a late SSE subscriber can replay it, but the buffer is in-memory only: after a restart the same events must be read from `run_traces`. Evidence: `server/src/platform/sse.ts:43-44`.
 
+- **2026-09-27** — A test helper that derives a parent directory by scanning a `node:path` `join` result for `'/'` is silently Windows-broken, and the two `repo-intel` helpers failed differently for the same reason: `join` returns backslashes, `lastIndexOf('/')` returns `-1`, so `indexer-pipeline.test.ts`'s `if (slash > 0)` skipped `mkdir` entirely and every fixture under a subdirectory died with `ENOENT: no such file or directory, open ...\src\a.ts`, while `indexer-walk.test.ts`'s `slice(0, -1)` instead created a junk directory named after the file minus its last character and then passed — which is why the failure looked confined to one file and to `repo-intel` rather than to the shared idiom. Both now use `dirname`; never scan for `'/'` in a path that `join` produced. Evidence: `server/test/indexer-pipeline.test.ts:141-145`, `server/test/indexer-walk.test.ts:19-23`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes
@@ -66,3 +68,4 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 ## Open Questions
 
 - **2026-09-18** — Why do exactly the six `runFullIndex`/`runIncremental` cases in `server/test/indexer-pipeline.test.ts` fail on Windows with `ENOENT` when the helper writes a fixture file, while the other 96 unit tests pass — is the helper's `mkdir`-then-`writeFile` pair racing, or does `os.tmpdir()` hand back the 8.3 short-path form of the temp directory and something downstream fail to resolve it? They fail independently of any change outside `repo-intel`, so a session that sees 6 red tests here has probably not caused them.
+  - **2026-09-27** — Superseded: neither — the helper never called `mkdir` at all on Windows, because it looked for `'/'` in a path `join` had written with backslashes. Fixed with `dirname`; all 17 cases across the two indexer test files pass. Evidence: `server/test/indexer-pipeline.test.ts:141-145`.
