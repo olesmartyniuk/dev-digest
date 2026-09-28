@@ -42,6 +42,8 @@ export default function PRDetailPage() {
     cancel,
     tab,
     traceRunId,
+    diffOrder,
+    setDiffOrder,
     setTab,
     setParam,
     onRunDone,
@@ -131,6 +133,10 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            order={diffOrder}
+            onOrderChange={setDiffOrder}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
           />
         )}
       </div>

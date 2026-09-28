@@ -18,6 +18,7 @@ import {
   PrIntentView,
   PrIntentResponse,
   PromptAssembly,
+  SmartDiffRole,
 } from '@devdigest/shared';
 
 /**
@@ -145,6 +146,26 @@ describe('AI contracts parse fixtures', () => {
       split_suggestion: { too_big: false, total_lines: 285, proposed_splits: [] },
     });
     expect(d.groups[0]!.role).toBe('core');
+
+    expect(SmartDiffRole.options).toEqual(['core', 'tests', 'wiring', 'docs', 'boilerplate']);
+
+    expect(() =>
+      SmartDiff.parse({
+        groups: [
+          { role: 'tests', files: [{ path: 'a.test.ts', additions: 10, deletions: 0, finding_lines: [] }] },
+        ],
+        split_suggestion: { too_big: false, total_lines: 10, proposed_splits: [] },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      SmartDiff.parse({
+        groups: [
+          { role: 'docs', files: [{ path: 'README.md', additions: 3, deletions: 0, finding_lines: [] }] },
+        ],
+        split_suggestion: { too_big: false, total_lines: 3, proposed_splits: [] },
+      }),
+    ).not.toThrow();
   });
 
   it('Conformance / Onboarding / EvalRun / MemoryItem', () => {

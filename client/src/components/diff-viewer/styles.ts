@@ -64,6 +64,32 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  /** Small round dot in a file/group header, coloured per-instance via
+   *  `severityColor()` — no `background` here, callers merge it in. */
+  findingDot: {
+    display: "inline-block",
+    width: 8,
+    height: 8,
+    borderRadius: 99,
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  /** Rail an inline finding renders in, under its line — same 58px left
+   *  indent as `cs.thread`, always visible (not gated by `showComments`). */
+  findingsRail: {
+    margin: "6px 14px 8px 58px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  } satisfies CSSProperties,
+  /** Footer block for findings whose `start_line` isn't on a rendered line. */
+  unanchoredWrap: {
+    borderTop: "1px solid var(--border)",
+    margin: "4px 14px 4px 58px",
+    paddingTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */

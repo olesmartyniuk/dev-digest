@@ -57,6 +57,14 @@ Run status values: `running`, `done`, `failed`, `cancelled`. A failed row carrie
 
 A review run also classifies lazily when the stored intent is missing or its `head_sha` differs from the PR head. That call's tokens and cost live on the intent record, never on any agent run.
 
+## Smart diff
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/pulls/:id/smart-diff` | `SmartDiffResponse` — deterministic, path-based role classification, no LLM call |
+
+Files are grouped by role in `core, tests, wiring, docs, boilerplate` order; empty roles are omitted from `groups`. `finding_lines` is always `[]` on every file — this endpoint never associates findings to files server-side; clients associate findings from `/pulls/:id/reviews` themselves. `pseudocode_summary` is always `null` (reserved). `split_suggestion.too_big` is always `false` and `proposed_splits` is always `[]`; `total_lines` is the sum of every file's `additions + deletions`. 404 when the PR is unknown.
+
 ## Agents
 
 | Method | Path | Contract |
