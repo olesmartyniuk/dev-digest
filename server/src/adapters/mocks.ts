@@ -249,6 +249,8 @@ export interface MockGitOptions {
   head?: string;
   /** Head `currentHead()` returns AFTER `sync()` runs — simulates fetch+reset advancing HEAD. */
   syncedHead?: string;
+  /** Fixtures for `readFileAt`, keyed `` `${ref}:${path}` ``. Absent → throws (mirrors a real missing blob). */
+  filesAt?: Record<string, string>;
 }
 
 export class MockGitClient implements GitClient {
@@ -292,6 +294,12 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  async readFileAt(_repo: RepoRef, ref: string, path: string): Promise<string> {
+    const key = `${ref}:${path}`;
+    const content = this.opts.filesAt?.[key];
+    if (content === undefined) throw new Error('not found');
+    return content;
   }
 }
 

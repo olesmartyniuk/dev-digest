@@ -18,14 +18,23 @@ Cross-package rules that any change must preserve. Each is observable and testab
 ## Prompt safety
 
 - **P1** Every review path appends the single shared `INJECTION_GUARD` to the agent's system prompt. There is no keyword scanning of untrusted text.
-- **P2** All untrusted content (diff, PR description, repo map, callers) is delimiter-wrapped by `wrapUntrusted`; PR descriptions are truncated.
+- **P2** All untrusted content (diff, PR description, derived intent, repo map, callers) is delimiter-wrapped by `wrapUntrusted`; PR descriptions are truncated.
 - **P3** Claims inside untrusted content that a finding is "intentional / a test fixture / not for production" never reduce severity or scope.
 
 ## Context enrichment
 
 - **C1** `repo-intel` is read-only at review time; no indexing happens during a request.
-- **C2** With repo-intel globally off (`REPO_INTEL_ENABLED=false`) **or** off for the agent (`repo_intel`), the prompt is byte-identical to the diff-only baseline.
+- **C2** With repo-intel globally off (`REPO_INTEL_ENABLED=false`) **or** off for the agent (`repo_intel`), the *repo-intel sections* of the prompt are omitted (skills and intent are independent of repo-intel).
 - **C3** An unindexed or partially indexed repo degrades silently — the facade returns empty results and the corresponding prompt sections are omitted.
+
+## Intent
+
+- **I1** Intent is derived at most once per `executeRuns` and fanned out to every queued run's log; a stored intent whose `head_sha` equals the PR head is reused without a model call.
+- **I2** Intent derivation is best-effort and never fails a run (a narrowing of R5).
+- **I3** The classifier receives the file list and hunk-header lines only, never hunk bodies.
+- **I4** No external URL is ever fetched; unresolvable references are recorded as `unavailable` and listed to both models as not read.
+- **I5** The intent call's tokens/cost are stored on `pr_intent`, never on `agent_runs`.
+- **I6** With no intent, the review prompt is byte-identical to the pre-L03 prompt.
 
 ## Run lifecycle
 

@@ -129,6 +129,19 @@ export class SimpleGitClient implements GitClient {
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
   }
+
+  /**
+   * Blob content at `ref` (`git show <ref>:<path>`) — reads a git object
+   * directly, not the working tree, so it works even when `sync()` has since
+   * reset the checkout to a different branch. Callers MUST validate `ref` and
+   * `path` first (this method adds no guard of its own); the leading-dash
+   * check below is defence in depth only, not the guard itself — no shell is
+   * involved since simple-git spawns git with an argv.
+   */
+  async readFileAt(repo: RepoRef, ref: string, path: string): Promise<string> {
+    if (ref.startsWith('-')) throw new Error('invalid ref');
+    return this.git(repo).show([`${ref}:${path}`]);
+  }
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

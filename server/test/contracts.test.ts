@@ -15,6 +15,9 @@ import {
   Settings,
   Repo,
   PrDetail,
+  PrIntentView,
+  PrIntentResponse,
+  PromptAssembly,
 } from '@devdigest/shared';
 
 /**
@@ -104,6 +107,33 @@ describe('AI contracts parse fixtures', () => {
     ).not.toThrow();
   });
 
+  it('PrIntentView / PrIntentResponse (L03 — GET/POST /pulls/:id/intent)', () => {
+    const view = PrIntentView.parse({
+      intent: 'Add rate limiting to protect the public API.',
+      in_scope: ['rate limiting middleware'],
+      out_of_scope: ['logging cleanup'],
+      pr_id: 'pr1',
+      confidence: 'medium',
+      confidence_reason: 'A referenced plan could not be read.',
+      sources: [
+        { kind: 'title', ref: null, status: 'used', note: null },
+        { kind: 'plan', ref: 'docs/plans/x.md', status: 'unavailable', note: 'not found' },
+      ],
+      provider: 'openrouter',
+      model: 'anthropic/claude-haiku-4.5',
+      head_sha: 'a1b2c3d4',
+      stale: false,
+      tokens_in: 900,
+      tokens_out: 120,
+      cost_usd: 0.0009,
+      classified_at: '2026-09-27T00:00:00.000Z',
+    });
+    expect(view.confidence).toBe('medium');
+
+    expect(() => PrIntentResponse.parse({ intent: view, skipped: null })).not.toThrow();
+    expect(() => PrIntentResponse.parse({ intent: null, skipped: 'no openrouter API key configured' })).not.toThrow();
+  });
+
   it('SmartDiff (data.jsx DIFF)', () => {
     const d = SmartDiff.parse({
       groups: [
@@ -166,6 +196,12 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+  });
+
+  it('PromptAssembly accepts the L03 `intent` field (present and absent)', () => {
+    expect(() => PromptAssembly.parse({ system: 's', user: 'u', intent: 'Intent: add rate limiting.' })).not.toThrow();
+    const withoutIntent = PromptAssembly.parse({ system: 's', user: 'u' });
+    expect(withoutIntent.intent).toBeUndefined();
   });
 });
 

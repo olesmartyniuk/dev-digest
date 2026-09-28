@@ -83,7 +83,10 @@ export function usePrDetail(repoId: string, number: string) {
     invalidateActiveRuns();
     invalidateRunHistory();
     refetchReviews();
-  }, [invalidateActiveRuns, invalidateRunHistory, refetchReviews]);
+    // L03 — a review may have classified intent lazily during the run; make
+    // sure a fresh (or first) classification shows up on the card.
+    if (prId) qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
+  }, [invalidateActiveRuns, invalidateRunHistory, refetchReviews, qc, prId]);
 
   const onDeleteRun = React.useCallback(
     (id: string) => {

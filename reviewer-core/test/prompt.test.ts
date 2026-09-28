@@ -4,7 +4,7 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt } from '../src/prompt.js';
+import { assemblePrompt, INTENT_SCOPE_RULE } from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -97,5 +97,47 @@ describe('assemblePrompt — ## PR description', () => {
       prDescription: 'x'.repeat(10_000),
     });
     expect((assembly.pr_description as string).length).toBe(4000);
+  });
+});
+
+describe('assemblePrompt — ## PR intent (L03)', () => {
+  it('renders the section immediately after ## PR description, and appends INTENT_SCOPE_RULE to the system message', () => {
+    const { messages, assembly } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      prDescription: 'Adds rate limiting.',
+      intentBrief: 'Intent: add rate limiting.\nConfidence: high — clear.',
+    });
+    const user = messages[1]!.content;
+    expect(user).toContain('## PR intent');
+    expect(user).toContain('<untrusted source="pr-intent">');
+    expect(user).toContain('Intent: add rate limiting.');
+    // Ordering: PR description, then PR intent, both before the diff.
+    const iDesc = user.indexOf('## PR description');
+    const iIntent = user.indexOf('## PR intent');
+    const iDiff = user.indexOf('## Diff to review');
+    expect(iDesc).toBeLessThan(iIntent);
+    expect(iIntent).toBeLessThan(iDiff);
+
+    expect(messages[0]!.content).toContain(INTENT_SCOPE_RULE);
+    expect(assembly.intent).toBe('Intent: add rate limiting.\nConfidence: high — clear.');
+  });
+
+  it('omits the section AND the scope rule when intentBrief is undefined (no behaviour change)', () => {
+    const withoutIntent = assemblePrompt({ system: 'sys', diff: 'DIFF' });
+    expect(withoutIntent.messages[1]!.content).not.toContain('## PR intent');
+    expect(withoutIntent.messages[0]!.content).not.toContain(INTENT_SCOPE_RULE);
+    expect(withoutIntent.assembly.intent).toBeNull();
+  });
+
+  it('a whitespace-only intentBrief produces a BYTE-IDENTICAL prompt to the no-intent baseline', () => {
+    const baseline = assemblePrompt({ system: 'sys', diff: 'DIFF', prDescription: 'p' });
+    const withWhitespace = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      prDescription: 'p',
+      intentBrief: '   \n\t  ',
+    });
+    expect(withWhitespace).toEqual(baseline);
   });
 });

@@ -32,7 +32,8 @@ export type FeatureModelChoice = z.infer<typeof FeatureModelChoice>;
  * Registry of the selectable features: stable id, display label, and the
  * built-in default used when the workspace hasn't overridden the choice. The
  * defaults MIRROR each module's constants, so behaviour is unchanged until a
- * model is explicitly picked.
+ * model is explicitly picked. `review_intent` defaults to a small/fast model;
+ * see docs/plans/2026-09-27-l03-intent-layer.md.
  */
 export interface FeatureModelDef {
   id: FeatureModelId;
@@ -53,8 +54,8 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     id: 'review_intent',
     label: 'PR Review · Intent',
     description: 'Derives a PR’s intent and scope before review.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    defaultProvider: 'openrouter',
+    defaultModel: 'anthropic/claude-haiku-4.5',
   },
   {
     id: 'risk_brief',

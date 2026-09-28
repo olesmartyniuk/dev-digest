@@ -4,7 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockSecretsProvider } from '../src/adapters/mocks.js';
 import { ReviewRepository } from '../src/modules/reviews/repository.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -111,15 +111,31 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
-  function appWith(structured: unknown, provider: 'openai' | 'anthropic' = 'openai') {
+  function appWith(
+    structured: unknown,
+    provider: 'openai' | 'anthropic' = 'openai',
+    opts: { openrouter?: MockLLMProvider } = {},
+  ) {
     return buildApp({
       config: config(),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
+        // L03: every review run now calls `container.intentService`
+        // (`run-executor.ts`'s `ensureForReview`), which resolves
+        // `container.llm('openrouter')` when no test override is supplied. An
+        // un-overridden `secrets` here falls back to `LocalSecretsProvider`,
+        // reading the REAL `~/.devdigest/secrets.json` — so on a machine with
+        // a real OpenRouter key configured, every run of this suite would make
+        // one real, billed intent-classification call. A keyless
+        // `MockSecretsProvider` makes that call always fail with a handled
+        // `ConfigError` (→ intent degrades to `skipped`) instead, unless a
+        // test explicitly injects an `openrouter` mock below.
+        secrets: new MockSecretsProvider({}),
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),
+          ...(opts.openrouter ? { openrouter: opts.openrouter } : {}),
         },
       },
     });
@@ -226,6 +242,50 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const listed = pulls.find((p: { id: string }) => p.id === pr.id);
     expect(listed.score).toBe(65);
     expect(listed.cost_usd).toBeCloseTo(0.001, 5);
+
+    await app.close();
+  });
+
+  it('L03: with an openrouter mock injected, intent classification attaches to the review prompt and is reused on a second run against the same head', async () => {
+    const intentFixture = {
+      intent: 'Add rate limiting to protect the public API.',
+      in_scope: ['rate limiting middleware'],
+      out_of_scope: ['logging cleanup'],
+      confidence: 'high',
+      confidence_reason: 'The description states the goal explicitly.',
+    };
+    const openrouter = new MockLLMProvider('openai', {
+      structuredBySchema: { IntentClassification: intentFixture },
+    });
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { openrouter });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Intent Reviewer', provider: 'openai', model: 'gpt-4.1', system_prompt: 'rev' },
+      })
+    ).json();
+
+    // ---- run 1: no stored intent yet → one classifier call, attached to the prompt ----
+    const runId1 = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const trace1 = (await app.inject({ method: 'GET', url: `/runs/${runId1}/trace` })).json();
+    expect(trace1.prompt_assembly.intent).not.toBeNull();
+    expect(trace1.log.some((l: { msg: string }) => l.msg.includes('intent: confidence='))).toBe(true);
+
+    // ---- run 2: same head commit → the stored classification is reused, no second LLM call ----
+    const runId2 = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    const trace2 = (await app.inject({ method: 'GET', url: `/runs/${runId2}/trace` })).json();
+    expect(
+      trace2.log.some((l: { msg: string }) => l.msg.includes('intent: reusing stored classification')),
+    ).toBe(true);
+    expect(openrouter.calls).toHaveLength(1);
 
     await app.close();
   });

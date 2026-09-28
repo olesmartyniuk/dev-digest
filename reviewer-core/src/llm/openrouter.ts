@@ -20,6 +20,14 @@ import { toJsonSchema, parseWithRepair } from './structured.js';
  * its baseURL. Only completeStructured is needed by reviewPullRequest; the rest
  * are stubs. Cost attribution is INJECTED (`estimateCost`) so the engine stays
  * free of a pricing table — the server passes its own, the runner passes none.
+ *
+ * `StructuredRequest.outputMode` (default `'json_schema'`) is opt-in per
+ * request: `'tool'` forces a single named function call instead, which is
+ * reported to be more reliable than strict json_schema on cheap models (L03's
+ * intent classifier is the first caller to set it). It changes only the
+ * request shape below — usage/cost accounting and the parse-with-repair loop
+ * are unaffected, so a caller that never sets it sends an identical request
+ * to before.
  */
 
 const NOT_SUPPORTED = 'OpenRouterProvider only implements completeStructured';
@@ -65,16 +73,34 @@ export class OpenRouterProvider implements LLMProvider {
     let costFromApi: number | null = null;
     let lastRaw = '';
 
+    const useTool = req.outputMode === 'tool';
+
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await this.client.chat.completions.create({
         model: req.model,
         messages,
         temperature: req.temperature ?? 0,
         ...(req.maxTokens ? { max_tokens: req.maxTokens } : {}),
-        response_format: {
-          type: 'json_schema',
-          json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
-        },
+        ...(useTool
+          ? {
+              tools: [
+                {
+                  type: 'function' as const,
+                  function: {
+                    name: req.schemaName,
+                    description: `Return the ${req.schemaName} object.`,
+                    parameters: jsonSchema.schema,
+                  },
+                },
+              ],
+              tool_choice: { type: 'function' as const, function: { name: req.schemaName } },
+            }
+          : {
+              response_format: {
+                type: 'json_schema' as const,
+                json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
+              },
+            }),
         // OpenRouter session grouping — extra body field (spread is exempt from
         // excess-property checks). Only sent when talking to OpenRouter.
         ...(this.id === 'openrouter' && req.sessionId ? { session_id: req.sessionId } : {}),
@@ -90,7 +116,7 @@ export class OpenRouterProvider implements LLMProvider {
         const errMsg = (res as unknown as { error?: { message?: string } }).error?.message;
         throw new Error(`OpenRouter returned no choices for ${req.schemaName}${errMsg ? `: ${errMsg}` : ''}`);
       }
-      lastRaw = choice.message?.content ?? '';
+      lastRaw = choice.message?.tool_calls?.[0]?.function?.arguments ?? choice.message?.content ?? '';
       tokensIn += res.usage?.prompt_tokens ?? 0;
       tokensOut += res.usage?.completion_tokens ?? 0;
       // `usage.cost` is an OpenRouter extension (USD), absent from the OpenAI SDK type.

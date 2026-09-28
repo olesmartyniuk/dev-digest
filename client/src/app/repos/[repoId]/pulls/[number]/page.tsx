@@ -14,6 +14,7 @@ import { RepoNotFound } from "@/components/repo-not-found";
 import { ApiError } from "@/lib/api";
 import { githubPrUrl } from "@/lib/github-urls";
 import { PrDetailHeader } from "./_components/PrDetailHeader";
+import { PrBriefCard } from "./_components/PrBriefCard";
 import { OverviewTab } from "./_components/OverviewTab";
 import { FindingsTab } from "./_components/FindingsTab";
 import { DiffTab } from "./_components/DiffTab";
@@ -102,6 +103,8 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
+        {prId && (tab === "overview" || tab === "findings") && <PrBriefCard prId={prId} />}
+
         {tab === "overview" && <OverviewTab prBody={pr.body} />}
 
         {tab === "findings" && (

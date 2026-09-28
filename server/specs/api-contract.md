@@ -48,6 +48,15 @@ What callers can rely on. Payload shapes are defined by the Zod contracts in `sr
 
 Run status values: `running`, `done`, `failed`, `cancelled`. A failed row carries `error`; `score` and `blockers` are null unless the run finished.
 
+## PR intent
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/pulls/:id/intent` | stored intent for the PR as `PrIntentResponse`; `intent` null when never classified; `stale=true` when the PR head moved since classification |
+| POST | `/pulls/:id/intent` | (re)classify synchronously with the `review_intent` feature model; 200 with `intent` (and `skipped=null`) on success, or 200 with `skipped=<reason>` and the previous intent (possibly null) when no key/timeout/model error; rate-limited 10/min |
+
+A review run also classifies lazily when the stored intent is missing or its `head_sha` differs from the PR head. That call's tokens and cost live on the intent record, never on any agent run.
+
 ## Agents
 
 | Method | Path | Contract |
