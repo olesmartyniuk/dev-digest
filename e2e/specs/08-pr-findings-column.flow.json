@@ -5,10 +5,10 @@
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR list data settles" },
-    { "cmd": ["wait", "--text", "Findings"], "label": "the FINDINGS column header is present" },
+    { "cmd": ["wait", "--text", "FINDINGS"], "label": "the FINDINGS column header is present (rendered uppercase by text-transform)" },
     { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR row is visible" },
     { "cmd": ["find", "role", "button", "click", "--name", "Show 2 findings"], "label": "click the severity breakdown" },
-    { "cmd": ["wait", "--text", "2 findings"], "label": "popover heading shows the total" },
+    { "cmd": ["wait", "--text", "2 FINDINGS"], "label": "popover heading shows the total (rendered uppercase by text-transform)" },
     { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the seeded finding is listed in the popover" },
     { "cmd": ["wait", "--text", "src/config.ts:12"], "label": "the finding's file:line is shown" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "still on the PR list — the badge click did NOT navigate to /pulls/482" }

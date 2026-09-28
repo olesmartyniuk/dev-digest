@@ -18,7 +18,7 @@ import {
   type Category,
 } from "@devdigest/ui";
 import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
-import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
+import { severityColor } from "@/lib/severity";
 import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/github-urls";
 import { s } from "./styles";
@@ -42,7 +42,7 @@ export function FindingCard({
 }) {
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
-  const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
+  const sevColor = severityColor(f.severity);
   const fileHref =
     repoFullName && headSha
       ? githubBlobUrl(repoFullName, headSha, f.file, f.start_line, f.end_line)

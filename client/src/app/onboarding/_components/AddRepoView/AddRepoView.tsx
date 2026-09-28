@@ -5,38 +5,12 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, Icon, IconBtn, Kbd, TextInput, FormField } from "@devdigest/ui";
-import { useAddRepo } from "@/lib/hooks";
-import { ApiError } from "@/lib/api";
+import { useAddRepoForm } from "./useAddRepoForm";
 
 export function AddRepoView() {
-  const router = useRouter();
-  const [repoUrl, setRepoUrl] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
-  const addRepo = useAddRepo();
-
-  const close = React.useCallback(() => router.push("/"), [router]);
-
-  // Escapable (the footer advertises Esc — make it real).
-  React.useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [close]);
-
-  const submit = async () => {
-    if (!repoUrl.trim()) return;
-    setError(null);
-    try {
-      const repo = await addRepo.mutateAsync(repoUrl.trim());
-      router.push(`/repos/${repo.id}/pulls`);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not add repository");
-    }
-  };
+  const { repoUrl, setRepoUrl, error, submit, close, addRepo } = useAddRepoForm();
 
   return (
     <div
@@ -78,16 +52,9 @@ export function AddRepoView() {
         <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 8, marginBottom: 28, lineHeight: 1.5 }}>
           Paste a GitHub repository URL — DevDigest clones it locally and imports open PRs.
           API keys aren’t needed here; set them once in{" "}
-          <a
-            href="/settings/api-keys"
-            onClick={(e) => {
-              e.preventDefault();
-              router.push("/settings/api-keys");
-            }}
-            style={{ color: "var(--accent-text)" }}
-          >
+          <Link href="/settings/api-keys" style={{ color: "var(--accent-text)" }}>
             Settings → API Keys
-          </a>
+          </Link>
           .
         </p>
 

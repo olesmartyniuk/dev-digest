@@ -18,9 +18,9 @@
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readdirSync, readFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import {
   resolveArgs,
   stdoutContains,
@@ -37,7 +37,41 @@ const SPECS_DIR = join(HERE, "specs");
 const RESULTS_DIR = join(HERE, "test-results");
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const BIN = process.env.AGENT_BROWSER_BIN ?? "agent-browser";
+/**
+ * Locate the agent-browser executable.
+ *
+ * `npm i -g agent-browser` writes three shims on Windows — `agent-browser`
+ * (an sh script), `.cmd`, and `.ps1` — and none is spawnable by `execFile`,
+ * which runs without a shell: every step dies with `spawn agent-browser
+ * ENOENT`. Re-running through a shell is not an option, because flow args
+ * contain spaces (`find role button click --name "Agent runs"`) and Node
+ * concatenates argv unescaped when `shell` is set. So look past the shims for
+ * the native binary the package ships beside them. POSIX is unaffected: there
+ * the bare name on PATH is the real thing.
+ */
+function resolveBin(): string {
+  const configured = process.env.AGENT_BROWSER_BIN;
+  if (configured) return configured;
+  if (process.platform !== "win32") return "agent-browser";
+
+  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+    if (!dir) continue;
+    const onPath = join(dir, "agent-browser.exe");
+    if (existsSync(onPath)) return onPath;
+    // npm's global bin dir — what the .cmd shim itself points at.
+    const shipped = join(
+      dir,
+      "node_modules",
+      "agent-browser",
+      "bin",
+      `agent-browser-win32-${process.arch}.exe`,
+    );
+    if (existsSync(shipped)) return shipped;
+  }
+  return "agent-browser"; // not found — fail loudly on the first step
+}
+
+const BIN = resolveBin();
 const STEP_TIMEOUT = Number(process.env.E2E_STEP_TIMEOUT ?? 60_000);
 
 /** Run one agent-browser command; resolve with its stdout, reject on non-zero exit. */

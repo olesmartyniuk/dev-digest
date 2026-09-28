@@ -5,4 +5,5 @@ export {
   tallySeverities,
   latestPerAgentFindings,
   formatLocation,
+  countBlockers,
 } from "./helpers";

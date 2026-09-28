@@ -3,11 +3,11 @@
 import React, { useCallback } from "react";
 import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
-import { RunHistory } from "../RunHistory/RunHistory";
+import { RunHistory } from "../RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
-import type { UseMutationResult } from "@tanstack/react-query";
+import type { useCancelRun } from "@/lib/hooks/reviews";
 
 interface FindingsTabProps {
   prId: string | null;
@@ -17,7 +17,7 @@ interface FindingsTabProps {
   runs: ReviewRecord[];
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
-  cancelMutation: UseMutationResult<any, any, string, any>;
+  cancelMutation: ReturnType<typeof useCancelRun>;
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
@@ -48,20 +48,6 @@ export function FindingsTab({
   const handleOpenFirstTrace = useCallback(() => {
     if (liveRunIds[0]) onOpenTrace(liveRunIds[0]);
   }, [liveRunIds, onOpenTrace]);
-
-  const handleOpenTrace = useCallback(
-    (id: string) => {
-      onOpenTrace(id);
-    },
-    [onOpenTrace],
-  );
-
-  const handleDelete = useCallback(
-    (id: string) => {
-      onDelete(id);
-    },
-    [onDelete],
-  );
 
   // run_id → RunSummary, so each review's accordion can show ITS run's cost/
   // tokens without a new fetch (prRuns is already loaded for the Timeline).
@@ -151,9 +137,9 @@ export function FindingsTab({
             runs={prRuns ?? []}
             commits={prCommits}
             findingsByRun={findingsByRun}
-            onOpenTrace={handleOpenTrace}
+            onOpenTrace={onOpenTrace}
             onGoToReview={handleGoToReview}
-            onDelete={handleDelete}
+            onDelete={onDelete}
           />
         </div>
       )}

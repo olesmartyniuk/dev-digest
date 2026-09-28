@@ -29,13 +29,15 @@ export function FindingsCell({
   const [opened, setOpened] = React.useState(false);
   const { data: reviews, isLoading } = usePrReviews(prId, opened);
 
-  const total = counts ? totalFindings(counts) : 0;
-  if (!counts || total === 0) return <span style={s.muted}>—</span>;
-
   // `counts` unions each agent's latest review server-side, so the panel has
   // to list that same set — not `reviews[0]`, which is just whichever agent
   // finished last.
+  // Must stay above the early return: a row going 0 → >0 findings would
+  // otherwise change the hook count between renders.
   const listed = React.useMemo(() => latestPerAgentFindings(reviews ?? []), [reviews]);
+
+  const total = counts ? totalFindings(counts) : 0;
+  if (!counts || total === 0) return <span style={s.muted}>—</span>;
 
   return (
     <div style={s.findingsCell}>

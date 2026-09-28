@@ -1,5 +1,5 @@
 import type { FindingRecord, ReviewRecord, SeverityCounts } from "@devdigest/shared";
-import { SEVERITY_SORT_WEIGHT } from "./constants";
+import { compareBySeverity } from "@/lib/severity";
 
 /**
  * Tally findings per severity, client-side.
@@ -30,12 +30,17 @@ export function tallySeverities(findings: FindingRecord[]): SeverityCounts {
  * would hide findings this panel has already counted.
  */
 export function panelFindings(findings: FindingRecord[]): FindingRecord[] {
-  return findings
-    .filter((f) => !f.dismissed_at)
-    .sort(
-      (a, b) =>
-        (SEVERITY_SORT_WEIGHT[a.severity] ?? 9) - (SEVERITY_SORT_WEIGHT[b.severity] ?? 9),
-    );
+  return findings.filter((f) => !f.dismissed_at).sort(compareBySeverity);
+}
+
+/**
+ * Findings that BLOCK a merge: critical and not triaged away.
+ *
+ * Lives here with the other dismissed/severity rules so a change to what
+ * "dismissed" means can't leave the accordion's blocker count behind.
+ */
+export function countBlockers(findings: FindingRecord[]): number {
+  return findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
 }
 
 /**

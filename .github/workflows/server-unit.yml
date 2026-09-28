@@ -54,6 +54,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Onion-architecture layer rules (.dependency-cruiser.cjs). Static import
+      # resolution only, no type-check — doesn't need reviewer-core's deps.
+      # Pre-existing drift is frozen in .dependency-cruiser-known-violations.json;
+      # this only fails on NEW violations.
+      - run: pnpm run arch
+
       # The server type-checks reviewer-core's RAW source: tsconfig aliases
       # @devdigest/reviewer-core → ../reviewer-core/src, and platform/structured.ts
       # re-exports from it. That source imports `openai`/`zod`, so without

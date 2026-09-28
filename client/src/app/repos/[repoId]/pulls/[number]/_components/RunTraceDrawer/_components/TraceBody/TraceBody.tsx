@@ -6,9 +6,9 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
-import { formatCostUsd } from "@/components/run-cost-badge/helpers";
+import { formatCostUsd, formatTokenPair } from "@/lib/format";
 import { PROMPT_COLORS } from "../../constants";
-import { formatSeconds, formatTokens } from "../../helpers";
+import { formatSeconds } from "../../helpers";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -63,7 +63,10 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
       >
         <div style={s.statsRow}>
           <Stat label={t("trace.stat.duration")} val={formatSeconds(stats.duration_ms)} />
-          <Stat label={t("trace.stat.tokens")} val={formatTokens(stats.tokens_in, stats.tokens_out)} />
+          <Stat
+            label={t("trace.stat.tokens")}
+            val={formatTokenPair(stats.tokens_in, stats.tokens_out)}
+          />
           <Stat label={t("trace.stat.cost")} val={formatCostUsd(stats.cost_usd)} />
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
         </div>

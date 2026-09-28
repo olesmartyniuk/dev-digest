@@ -32,6 +32,41 @@ describe('assemblePrompt — shared injection guard (server + CI)', () => {
   });
 });
 
+describe('assemblePrompt — ## Skills / rules (L02)', () => {
+  it('renders one block per linked skill body, in order, joined by a blank line', () => {
+    const { messages, assembly } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      skills: ['# Rubric A\nCheck branch coverage.', '# Rubric B\nCheck breaking API changes.'],
+    });
+    const user = messages[1]!.content;
+    expect(user).toContain('## Skills / rules');
+    expect(user).toContain('# Rubric A\nCheck branch coverage.\n\n# Rubric B\nCheck breaking API changes.');
+    // Ordering: Skills renders before Diff (and, per the assembly order, before memory too).
+    expect(user.indexOf('## Skills / rules')).toBeLessThan(user.indexOf('## Diff to review'));
+    expect(assembly.skills).toBe(
+      '# Rubric A\nCheck branch coverage.\n\n# Rubric B\nCheck breaking API changes.',
+    );
+  });
+
+  it('omits the section when skills is undefined or an empty array (no behaviour change)', () => {
+    const base = userOf({ system: 'sys', diff: 'DIFF' });
+    expect(base).not.toContain('## Skills / rules');
+    expect(assemblePrompt({ system: 'sys', diff: 'DIFF' }).assembly.skills).toBeNull();
+    expect(userOf({ system: 'sys', diff: 'DIFF', skills: [] })).toBe(base);
+  });
+
+  it('a disabled/unlinked skill contributes nothing — the caller simply omits it from the array', () => {
+    // The engine has no notion of "enabled"; the server filters before calling
+    // in. Passing only the still-enabled bodies is indistinguishable, prompt-
+    // wise, from that skill never having existed for this run.
+    const withOne = userOf({ system: 'sys', diff: 'DIFF', skills: ['# Rubric A'] });
+    const withNone = userOf({ system: 'sys', diff: 'DIFF', skills: [] });
+    expect(withOne).toContain('# Rubric A');
+    expect(withNone).not.toContain('# Rubric A');
+  });
+});
+
 describe('assemblePrompt — ## PR description', () => {
   it('renders the section (untrusted-wrapped) before the diff when present', () => {
     const { messages, assembly } = assemblePrompt({

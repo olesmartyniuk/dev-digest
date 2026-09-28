@@ -1,0 +1,156 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/service.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-module-reach"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/adapters/astgrep/index.ts",
+    "unresolvedTo": "../../adapters/astgrep/index.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-service-imports-adapters-directly"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/adapters/codeindex/extract.ts",
+    "unresolvedTo": "../../adapters/codeindex/extract.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-service-imports-adapters-directly"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/adapters/auth/local.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/app.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/platform/jobs.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.cjs",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-sql-outside-persistence"
+    }
+  }
+]

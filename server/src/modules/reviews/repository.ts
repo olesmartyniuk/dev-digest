@@ -104,6 +104,12 @@ export class ReviewRepository {
     return reviewRepo.deleteReview(this.db, workspaceId, reviewId);
   }
 
+  /** Clean up a review left dangling by a run that failed AFTER `insertReview`
+   *  succeeded but before the run was marked done — see run-executor.ts. */
+  deleteReviewByRunId(runId: string): Promise<void> {
+    return reviewRepo.deleteReviewByRunId(this.db, runId);
+  }
+
   // ---- finding actions ----------------------------------------------------
 
   getFinding(findingId: string): Promise<FindingRow | undefined> {

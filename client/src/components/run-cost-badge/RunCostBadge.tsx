@@ -4,7 +4,7 @@
 "use client";
 
 import React from "react";
-import { formatCostUsd, formatTokenPair } from "./helpers";
+import { formatCostUsd, formatTokenPair } from "@/lib/format";
 
 type RunCostBadgeProps =
   | { variant: "compact"; costUsd: number | null | undefined }
