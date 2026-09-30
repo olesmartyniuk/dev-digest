@@ -26,6 +26,7 @@ import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { SkillsService } from '../modules/skills/service.js';
+import { IntentService } from '../modules/intent/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -74,6 +75,7 @@ export class Container {
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
   private _skillsService?: SkillsService;
+  private _intentService?: IntentService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -110,6 +112,14 @@ export class Container {
    */
   get skillsService(): SkillsService {
     return (this._skillsService ??= new SkillsService(this));
+  }
+
+  /**
+   * PR intent classification (L03). Exposed here so the reviews run executor
+   * can derive intent without reaching into the intent module's folder.
+   */
+  get intentService(): IntentService {
+    return (this._intentService ??= new IntentService(this));
   }
 
   get codeIndex(): CodeIndex {

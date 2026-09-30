@@ -13,6 +13,7 @@ import {
 } from "@/lib/hooks/reviews";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import type { FindingRecord } from "@devdigest/shared";
+import type { DiffOrder } from "../_components/DiffTab/constants";
 
 /**
  * Everything the PR detail route needs, so the page itself stays layout.
@@ -68,6 +69,15 @@ export function usePrDetail(repoId: string, number: string) {
   );
   const setTab = React.useCallback((t: string) => setParam("tab", t), [setParam]);
 
+  // The "Files changed" tab's file order lives in the URL too, so a shared
+  // link keeps showing the same view. Absent means Smart (the default),
+  // so existing `?tab=diff` links stay valid.
+  const diffOrder: DiffOrder = search.get("order") === "original" ? "original" : "smart";
+  const setDiffOrder = React.useCallback(
+    (o: DiffOrder) => setParam("order", o === "smart" ? null : o),
+    [setParam],
+  );
+
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = React.useMemo(() => reviews ?? [], [reviews]);
   const allFindings: FindingRecord[] = React.useMemo(
@@ -83,7 +93,10 @@ export function usePrDetail(repoId: string, number: string) {
     invalidateActiveRuns();
     invalidateRunHistory();
     refetchReviews();
-  }, [invalidateActiveRuns, invalidateRunHistory, refetchReviews]);
+    // L03 — a review may have classified intent lazily during the run; make
+    // sure a fresh (or first) classification shows up on the card.
+    if (prId) qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
+  }, [invalidateActiveRuns, invalidateRunHistory, refetchReviews, qc, prId]);
 
   const onDeleteRun = React.useCallback(
     (id: string) => {
@@ -115,6 +128,8 @@ export function usePrDetail(repoId: string, number: string) {
     cancel,
     tab: search.get("tab") ?? "overview",
     traceRunId: search.get("trace"),
+    diffOrder,
+    setDiffOrder,
     setTab,
     setParam,
     onRunDone,

@@ -15,5 +15,23 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "intent": {
+    "empty": "Intent not classified yet.",
+    "emptyHint": "Classify it now, or run a review — it's derived automatically before the agents run.",
+    "classify": "Classify intent",
+    "rerun": "Re-run classification",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "none": "None stated",
+    "sources": "Sources",
+    "missingContext": "Missing context — not read",
+    "stale": "The PR has new commits since this was classified. Re-run to refresh.",
+    "skipped": "Classification skipped: {reason}",
+    "confidence": {
+      "high": "High confidence",
+      "medium": "Medium confidence",
+      "low": "Low confidence"
+    }
   }
 }

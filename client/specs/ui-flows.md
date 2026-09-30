@@ -39,6 +39,7 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - The verdict banner shows the deterministic score; it can never contradict the findings listed beneath it.
 - The trace drawer opens via `?trace=<runId>` and renders the persisted trace: prompt assembly, tool calls, stats, raw output, full log.
 - Cancelling a run is available while it runs and works even for a run orphaned by a server restart.
+- The Files changed tab defaults to Smart order — role groups (core, tests, wiring, docs, boilerplate) from `GET /pulls/:id/smart-diff`, with docs and boilerplate collapsed by default. `?order=original` shows GitHub order instead. Findings are matched to files client-side from `/pulls/:id/reviews`, on `file` + `start_line` (RIGHT side) — the server never does this association.
 
 ## `/agents` and `/agents/:id`
 

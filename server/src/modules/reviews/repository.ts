@@ -1,6 +1,7 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { IntentRecordInput } from './repository/pull.repo.js';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -17,6 +18,9 @@ import type { FindingRow, PullRow } from '../../db/rows.js';
 export type { FindingRow, PullRow };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
+/** L03 — the persisted `pr_intent` row shape (classification + provenance). */
+export type PrIntentRow = typeof t.prIntent.$inferSelect;
+export type { IntentRecordInput };
 
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
@@ -139,6 +143,16 @@ export class ReviewRepository {
 
   getIntent(prId: string): Promise<Intent | undefined> {
     return pullRepo.getIntent(this.db, prId);
+  }
+
+  /** L03 — upsert the full classification record (+provenance) for a PR. */
+  upsertIntentRecord(prId: string, rec: IntentRecordInput): Promise<void> {
+    return pullRepo.upsertIntentRecord(this.db, prId, rec);
+  }
+
+  /** L03 — the stored classification record for a PR, if any. */
+  getIntentRecord(prId: string): Promise<PrIntentRow | undefined> {
+    return pullRepo.getIntentRecord(this.db, prId);
   }
 
   // ---- observability: agent_runs + run_traces ----------------------------

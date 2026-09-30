@@ -1,0 +1,126 @@
+# Agents
+
+Subagents invoked via the `Agent` tool. Canonical location is `.claude/agents/`. Each is a self-contained context — it does not see the caller's conversation history, prior skill invocations, or files already read — so every agent below is designed to be fully briefed by its input (a prompt, a plan file path) rather than by shared state.
+
+## Catalog
+
+| Agent | Role | Tools | Model |
+|-------|------|-------|-------|
+| [planner](planner.md) | Writes a file-by-file implementation plan before any code exists | `Read, Grep, Glob, Write, Skill` | opus |
+| [implementer](implementer.md) | Executes an approved plan — backend and frontend, verified before hand-back | `Read, Write, Edit, Grep, Glob, Bash, Skill, TodoWrite` | inherit |
+| [researcher](researcher.md) | Read-only research, from this project or the web, with a locator per claim | `Read, Grep, Glob, WebSearch, WebFetch` | sonnet |
+| [test-writer](test-writer.md) | Writes client (RTL) and server (hermetic / `*.it.test.ts`) tests; test files only, never the code under test | `Read, Write, Edit, Grep, Glob, Bash, Skill` | inherit |
+| [architecture-reviewer](architecture-reviewer.md) | Read-only, advisory layering review — runs `pnpm arch`, every finding is file:line + quote + named rule | `Read, Grep, Glob, Bash` | sonnet |
+| [plan-verifier](plan-verifier.md) | Checks an implementation against every item of a `docs/plans/*.md` plan, re-running its Verification itself; MET / NOT MET per row | `Read, Grep, Glob, Bash` | opus |
+| [doc-writer](doc-writer.md) | Documents implemented features (incl. grounded Mermaid diagrams) in the one existing docs/specs home for each fact | `Read, Write, Edit, Grep, Glob` | sonnet |
+
+The intended flow is `planner → implementer → test-writer → architecture-reviewer → plan-verifier → doc-writer`; `test-writer` is optional per change, `architecture-reviewer` is advisory and can feed `plan-verifier`, and `doc-writer` runs after a `PASS`. `researcher` is used ad hoc by a human or any agent to settle a factual question before deciding or writing code.
+
+## planner
+
+Turns a request into a plan another agent (`implementer`) can execute without guessing. Writes exactly one file, under `docs/plans/<date>-<slug>.md`, and no product code — it has no `Edit` and no `Bash`, deliberately. It inventories this repo's packages, modules and the full skills catalog, and assigns skills per plan step rather than leaving that judgment to whoever implements it later.
+
+**Design choices and their sources:**
+
+- **The plan file is the entire hand-off; the hand-back message is a short pointer to it.** A subagent's context is invisible to whatever runs next, so the plan has to be self-contained — this is the documented behavior of Claude Code subagents, not an assumption. *Source: [Create custom subagents](https://code.claude.com/docs/en/sub-agents) — Claude Code Docs (primary).*
+- **Tool scoping is intentional, not just "whatever's left over."** `Read, Grep, Glob, Write, Skill` (no `Edit`, no `Bash`) is the documented allowlist mechanism for restricting a subagent to a narrow write surface — one path, never arbitrary edits. *Source: [Create custom subagents](https://code.claude.com/docs/en/sub-agents) — Claude Code Docs (primary); role-based tool scoping example (planner-equivalent role gets read-heavy tools, implementer-equivalent gets `Edit`/`Write`/`Bash`) — [Best practices for Claude Code subagents](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/) — PubNub (secondary).*
+- **Every plan carries an explicit status flag** (`READY FOR IMPLEMENTER` / `BLOCKED` / `NO PLAN NEEDED`) that the next stage checks before acting, rather than an implicit "looks done." *Source: status-flag hand-off pattern (e.g. `READY_FOR_ARCH`) — [PubNub](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/) (secondary).*
+- **The planner is a deliberate complexity add, justified by the task shape.** Anthropic's own guidance is to add multi-agent structure only when it demonstrably beats a single prompt — a two-stage plan/execute split is explicitly called out for coding tasks that touch multiple files, which is the case this planner exists for. *Source: [Building Effective AI Agents](https://www.anthropic.com/research/building-effective-agents) — Anthropic Research (primary).*
+- **All 14 project skills are preloaded via the `skills:` frontmatter field**, not discovered per-call — a documented alternative to on-demand `Skill`-tool invocation, chosen here so the planner has full skill content (not just descriptions) available when assigning skills to steps. *Source: `skills:` frontmatter preload mechanism — [Skills documentation](https://code.claude.com/docs/en/skills) — Claude Code Docs (primary).*
+- **Skills are named from what's actually on disk (`Glob .claude/skills/*/SKILL.md`), never from `skills-lock.json`.** This is a project-specific finding, not a vendor source: `skills-lock.json` pins skills that no longer have folders and misses several that exist — see root [INSIGHTS.md](../../INSIGHTS.md).
+
+## implementer
+
+Executes a plan — it does not redesign it. Applies this repo's backend skills (Fastify, Drizzle, Postgres) to `server/`, frontend skills (Next.js, React, TanStack Query) to `client/`, enforces onion-architecture layering, and verifies with typecheck/tests/`pnpm arch` before handing back.
+
+**Design choices and their sources:**
+
+- **"Execute, don't redesign" plus explicit stop-and-report instead of silent substitution.** If a step is impossible, the implementer records the conflict and hands back `PARTIAL` rather than inventing a different design — this mirrors a documented anti-pattern pair (implementer scope-creeping past its guardrails, or redesigning instead of executing), mitigated by requiring an explicit halt. *Source: ADR-guardrail / "STOP and ask" pattern — [PubNub](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/) (secondary).*
+- **`Status: COMPLETE` is gated on every applicable verification command actually passing**, not on "the code looks right." *Source: "Only mark DONE if all tests pass" — [PubNub](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/) (secondary).*
+- **Full write/execute tool access (`Edit`, `Write`, `Bash`) is the counterpart to the planner's read-mostly scope** — the documented allowlist mechanism, applied to the opposite end of the pipeline. *Source: [Create custom subagents](https://code.claude.com/docs/en/sub-agents) — Claude Code Docs (primary).*
+- **All 14 skills are preloaded via frontmatter `skills:`**, so the implementer never spends a `Skill` tool call fetching one mid-task — "invoke it before touching X" in this file means *consult what's already loaded*, not fetch it. This was a deliberate move away from an earlier on-demand design (`Glob` the catalog, call `Skill` per file) once the project decided guaranteed availability was worth the fixed context cost of loading all 14 regardless of whether a given run needs the frontend or backend half. *Source: `skills:` frontmatter preload vs. on-demand discovery via the `Skill` tool during execution — [Skills documentation](https://code.claude.com/docs/en/skills) — Claude Code Docs (primary).*
+- **Onion-architecture layering is checked, not advisory** — `pnpm arch` (dependency-cruiser) enforces the same dependency rule the preloaded `onion-architecture` skill describes; a failing check gets the placement fixed, never the config relaxed. This is a project convention, not sourced externally — see [.claude/skills/onion-architecture/SKILL.md](../skills/onion-architecture/SKILL.md).
+
+## researcher
+
+Read-only. Answers a question from this project's own code/docs or from the web, and returns a fixed report with a locator (file:line, or URL) for every claim. Has no `Write`, `Edit` or `Bash`.
+
+**Design choices and their sources:**
+
+- **Strict read-only tool scoping** — the documented mechanism for a subagent that must never take an action, only report findings. *Source: [Create custom subagents](https://code.claude.com/docs/en/sub-agents) — Claude Code Docs (primary).*
+- **One mode per run (`PROJECT` or `WEB`), never blended**, and a hard tool-call budget (8 for project, 6 for web) — a project-specific discipline for keeping a research subagent cheap and predictable, not itself sourced from a vendor doc.
+- **"Ask rather than guess," but asking means finishing the run with `Status: NEEDS INPUT`, not waiting interactively.** A subagent has no interactive tool and gets one shot — this constraint is a direct consequence of the documented isolated-context behavior common to all three agents here. *Source: [Create custom subagents](https://code.claude.com/docs/en/sub-agents) — Claude Code Docs (primary).*
+
+This agent (in `WEB` mode) is also what produced the sourced findings cited throughout this README — see **Sources** below for the full trail.
+
+## test-writer
+
+Writes tests for DevDigest — React Testing Library + Vitest for `client/` components and hooks, and hermetic vs `*.it.test.ts` (testcontainers Postgres) tests for `server/`, plus `reviewer-core` engine tests — following this repo's own `TESTING.md` and the `react-testing-library` skill rather than inventing a style. Writes only test files; never edits the code under test. If a test exposes a bug, it keeps the failing test and reports the bug instead of "fixing" the implementation.
+
+**Design choices and their sources:**
+
+- **Tool scope is write-capable but path-disciplined** — `Write`/`Edit`/`Bash` are needed to create and run tests, but the body restricts writes to test-file globs, the same self-imposed narrow-write pattern as the planner's "one write, one path". *Source: tools allowlist mechanism — [Create custom subagents](https://code.claude.com/docs/en/sub-agents) — Claude Code Docs (primary); the path restriction itself is project convention (the `tools` field scopes tools, not paths).*
+- **Route by package before writing** — client files go to `react-testing-library` conventions, server files to the `TESTING.md` hermetic vs `*.it.test.ts` split. *Source: the "routing" workflow (classify input, send to a specialised downstream prompt) — [Building Effective AI Agents](https://www.anthropic.com/research/building-effective-agents) — Anthropic Research (primary). Applying it to test lanes is an extrapolation; that page has no testing-specific example.* The conventions routed to are internal: [TESTING.md](../../TESTING.md), [react-testing-library](../skills/react-testing-library/SKILL.md).
+- **No tautological assertions, no asserting on mock behaviour; every test names the regression it catches.** *Source: named anti-patterns for LLM-generated tests — [IBM Research ASTER blog](https://research.ibm.com/blog/aster-llm-unit-testing), [arXiv 2604.19315](https://arxiv.org/html/2604.19315), [LangWatch mocks guide](https://langwatch.ai/scenario/testing-guides/mocks/) (secondary; paraphrased, not independently verified, not direct quotes). "Name the regression" follows this repo's own `TESTING.md` rule "If a test wouldn't catch a class of regression we care about, we don't write it."*
+- **Never edit the implementation (or weaken a test) to make a failing test pass — keep the failing test and report `BUGS FOUND`.** No external source was found that documents this anti-pattern by name; it is original project convention, stated here without attribution — the same way the planner/implementer naming split is.
+- **Preloads a 6-skill subset, not all 14**, because it touches only test files. *Source: `skills:` preload mechanism — [Skills documentation](https://code.claude.com/docs/en/skills) — Claude Code Docs (primary); the subset choice is project convention.*
+
+## architecture-reviewer
+
+Read-only architecture review for DevDigest. Checks a diff, a path list, or a plan's changed files against the onion layering (running `pnpm arch` / dependency-cruiser itself), `reviewer-core` purity, the two vendored `@devdigest/shared` copies, and the vendored-UI barrel rule, and returns only findings backed by file:line, quoted code and the named rule violated. Advisory — it never edits files and never blocks anything itself.
+
+**Design choices and their sources:**
+
+- **No `Write`/`Edit`; findings only.** Mirrors the docs' shipped read-only `code-reviewer` example (`tools: Read, Glob, Grep`). *Source: [Create custom subagents](https://code.claude.com/docs/en/sub-agents) — Claude Code Docs (primary).* It departs from that example by adding `Bash`, restricted in the body to `pnpm arch` and read-only `git` — so it runs the check itself rather than trusting a pasted result (project choice).
+- **Layering is judged by the repo's existing mechanical gate first** — `pnpm arch` / dependency-cruiser and its six named rules — then by the non-mechanical rules the gate can't see. *Source: [.claude/skills/onion-architecture/SKILL.md](../skills/onion-architecture/SKILL.md) (project, primary for this repo); dependency-cruiser as an "architecture fitness function" — [Xebia](https://xebia.com/blog/taking-frontend-architecture-serious-with-dependency-cruiser/) (secondary, unverified paraphrase; external corroboration only).*
+- **Every finding = `Where:` file:line + quoted `Evidence:` + named `Rule:` + one-sentence why** — reusing `researcher.md`'s Findings shape instead of importing outside rubric vocabulary. *Loose corroboration: a "Specificity" dimension separating vague from file/line-precise review findings — [arXiv 2606.15689](https://arxiv.org/pdf/2606.15689) (secondary, preprint, unverified).* The format itself is internal: [researcher.md](researcher.md).
+- **Advisory, not a gate** — its report goes to a human or to `plan-verifier`; nothing blocks on it directly. *Loose corroboration: start advisory, promote critical checks to blocking later — [Augment Code](https://www.augmentcode.com/guides/ai-agent-pre-merge-verification) (secondary, unverified).*
+
+## plan-verifier
+
+Verifies a finished DevDigest implementation against a written plan in `docs/plans/`, item by item — every step's Files, Interfaces and Done-when, the Contract changes, Database, Out of scope and Do-not-touch sections, and every Verification command, which it re-runs itself rather than trusting the implementer's hand-back. Each verdict is MET or NOT MET with a file:line quote or command output; anything it cannot verify is NOT MET. Never gives general feedback and never fixes anything.
+
+**Design choices and their sources:**
+
+- **A separate evaluator judges the implementer's output against explicit criteria.** *Source: the "evaluator-optimizer" workflow — "one LLM call generates a response while another provides evaluation and feedback in a loop", effective "when we have clear evaluation criteria" — [Building Effective AI Agents](https://www.anthropic.com/research/building-effective-agents) (primary). The page does not prescribe any MET/NOT MET schema; the per-row checklist is this repo's design on top of the pattern.*
+- **Re-derives verification independently — re-runs the plan's Verification commands itself; the implementer's hand-back is not evidence.** *Source: a verifier subagent that checks acceptance criteria "against the running system without seeing the diff, design, or the implementer's tests", because "the implementer could only confirm the path it built", with tooling for "unfalsifiable acceptance criteria" — [chroju/skills PR #25](https://github.com/chroju/skills/pull/25) (secondary, fetched and quoted verbatim).* Adapted, not copied: this verifier *does* read the diff (it must map changed files to plan steps); what it refuses to trust is the implementer's report.
+- **Per-item MET / NOT MET with one locator each, NOT MET by default when unverifiable, never implements a fix, no generic advice.** Community examples describe a verifier returning ACs marked Pass/Fail with one-line evidence, defaulting to fail, never fixing — *seen only in search snippets, not fetched or verified, no URL retained (secondary, low confidence)*; the rule stands as project convention either way.
+- **Each row needs a concrete observable criterion, and a uniform result is re-checked.** *Source: a rubric needs "concrete observable criteria" per item, and a flat, undifferentiated score is "the canonical 'no anchors' tell" — [FutureAGI rubric glossary](https://futureagi.com/glossary/rubric/) (secondary, fetched).*
+- **Commands that write to the tree or DB are verified by inspection, not re-run** (`db:generate`, `db:migrate`, `arch:baseline`, …). Project convention, derived from root `CLAUDE.md`'s append-only migrations rule; no external source.
+
+## doc-writer
+
+Documents implemented DevDigest features. Turns a plan, a diff or other source material into documentation — prose, reference tables and Mermaid diagrams — grounded in code it read this run, and first decides which existing `docs/` or `specs/` file and section is the one home for each fact before ever creating a new file. Writes documentation only — never code, tests, `CLAUDE.md`, `INSIGHTS.md`, plans, or the reviewer prompt bodies that are seeded into the DB. Use after `plan-verifier` passes.
+
+**Design choices and their sources:**
+
+- **No vendor-defined doc-writer role exists** — Claude Code docs define no "doc-writer" subagent or tool scope; the role, its `Read, Write, Edit, Grep, Glob` scope, and its doc-path allowlist are entirely project design. *Checked against: [Create custom subagents](https://code.claude.com/docs/en/sub-agents) (primary).*
+- **Route each fact to one home by documentation type before writing.** *Source: tutorial / how-to / reference / explanation — [Diátaxis](https://diataxis.fr/) (primary; landing page only — the deeper "how to apply" pages were not fetched, so the operational routing algorithm is not independently confirmed).* The concrete file→section table is this repo's own, modelled on `pr-self-review`'s Step 2 path→skill table.
+- **Update or link, don't duplicate — one canonical place per fact.** *Source: docs-as-code / single source of truth — [Mintlify](https://www.mintlify.com/library/what-is-docs-as-code), [Paligo](https://paligo.net/blog/content-reuse/what-is-single-source-of-truth-ssot/) (secondary, paraphrased, unverified).*
+- **Diagrams are grounded: every node and edge maps to something read this run.** No external convention was found for evidence-grounded diagram generation; this is original project convention, the docs analogue of the planner's rule 2 ("name real things only").
+- **Never edits the reviewer prompt bodies in `docs/agent-prompts/`** — they are mirrored into `server/src/db/seed-prompts.ts` / `seed-skills.ts` and the DB is their runtime source of truth, so an edit there is a product change. Project finding, see [docs/agent-prompts/README.md](../../docs/agent-prompts/README.md).
+- **Trade-off acknowledged:** one published pipeline folds doc updates into the implementer's own work instead of a separate stage — [PubNub](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/) (secondary). This repo keeps a standalone doc-writer because it was asked for and because documenting *after* `plan-verifier` means docs describe verified code; the cost is one more agent hop.
+
+## Sources
+
+| Source | Publisher | Tier | Used for |
+|---|---|---|---|
+| [Create custom subagents](https://code.claude.com/docs/en/sub-agents) | Claude Code Docs (Anthropic) | Primary | Context isolation, tool allowlists, description-based delegation; read-only reviewer example; absence of a vendor doc-writer role |
+| [Skills documentation](https://code.claude.com/docs/en/skills) | Claude Code Docs (Anthropic) | Primary | `skills:` frontmatter preload vs. on-demand `Skill` tool invocation, `context: fork` + `agent:` routing; per-agent skill subsets |
+| [Building Effective AI Agents](https://www.anthropic.com/research/building-effective-agents) | Anthropic Research | Primary | When multi-agent structure is justified; orchestrator-worker framing for multi-file coding tasks; routing (test-writer, extrapolated); evaluator-optimizer (plan-verifier) |
+| [Best practices for Claude Code subagents](https://www.pubnub.com/blog/best-practices-for-claude-code-sub-agents/) | PubNub (engineering blog) | Secondary | Role-based tool scoping example, status-flag hand-off pattern, scope-creep / redesign-instead-of-execute anti-patterns; counter-example: docs folded into the implementer |
+| [ASTER: LLM unit testing](https://research.ibm.com/blog/aster-llm-unit-testing) | IBM Research blog | Secondary (unverified paraphrase) | test-writer anti-patterns |
+| [arXiv 2604.19315](https://arxiv.org/html/2604.19315) | arXiv preprint | Secondary (unverified paraphrase) | test-writer: asserting on mocks |
+| [Mocks testing guide](https://langwatch.ai/scenario/testing-guides/mocks/) | LangWatch | Secondary (unverified paraphrase) | test-writer: asserting on mocks |
+| [Taking frontend architecture serious with dependency-cruiser](https://xebia.com/blog/taking-frontend-architecture-serious-with-dependency-cruiser/) | Xebia blog | Secondary (unverified) | architecture-reviewer: fitness-function corroboration |
+| [arXiv 2606.15689](https://arxiv.org/pdf/2606.15689) | arXiv preprint | Secondary (unverified) | architecture-reviewer: specificity of findings |
+| [AI agent pre-merge verification](https://www.augmentcode.com/guides/ai-agent-pre-merge-verification) | Augment Code | Secondary (unverified) | architecture-reviewer: advisory vs blocking |
+| [chroju/skills PR #25](https://github.com/chroju/skills/pull/25) | GitHub | Secondary (fetched, quoted) | plan-verifier: independent verifier |
+| [Rubric](https://futureagi.com/glossary/rubric/) | FutureAGI glossary | Secondary (fetched) | plan-verifier: observable criteria, flat-score tell |
+| [Diátaxis](https://diataxis.fr/) | Diátaxis | Primary (landing page only) | doc-writer: four doc types |
+| [What is docs-as-code](https://www.mintlify.com/library/what-is-docs-as-code) | Mintlify | Secondary (unverified paraphrase) | doc-writer: single source of truth |
+| [What is a single source of truth](https://paligo.net/blog/content-reuse/what-is-single-source-of-truth-ssot/) | Paligo | Secondary (unverified paraphrase) | doc-writer: single source of truth |
+
+Retrieved 2026-09-27 by a `researcher` agent run in `WEB` mode. No official Anthropic document names "planner"/"implementer" as a vendor-defined role pair — Claude Code's own built-in read-only planning agent is called `Plan`, and there is no built-in "implementer." The naming and split here is a project convention layered on top of the documented Claude Code primitives above, not a copy of a named external pattern.
+
+Sources added for `test-writer`, `architecture-reviewer`, `plan-verifier` and `doc-writer` were retrieved 2026-09-27 by four parallel web-research passes. Kong and scand.com were also seen for the docs-as-code point but no URL was retained, so they are not listed; the community Pass/Fail-verifier examples were seen only as search snippets and have no row. No external source was found for three rules, which are original project convention: never editing the implementation to make a test pass (test-writer), evidence-grounded diagrams (doc-writer), and the MET/NOT MET row schema (plan-verifier).

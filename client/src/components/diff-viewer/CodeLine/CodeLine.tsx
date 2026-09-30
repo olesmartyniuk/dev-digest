@@ -14,11 +14,13 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  findingsSlot,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  findingsSlot?: React.ReactNode;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -63,6 +65,8 @@ export function CodeLine({
           {ln.text || " "}
         </span>
       </div>
+
+      {findingsSlot && <div style={s.findingsRail}>{findingsSlot}</div>}
 
       {commenting &&
         commenting.showComments &&

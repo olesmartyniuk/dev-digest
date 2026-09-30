@@ -48,6 +48,23 @@ What callers can rely on. Payload shapes are defined by the Zod contracts in `sr
 
 Run status values: `running`, `done`, `failed`, `cancelled`. A failed row carries `error`; `score` and `blockers` are null unless the run finished.
 
+## PR intent
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/pulls/:id/intent` | stored intent for the PR as `PrIntentResponse`; `intent` null when never classified; `stale=true` when the PR head moved since classification |
+| POST | `/pulls/:id/intent` | (re)classify synchronously with the `review_intent` feature model; 200 with `intent` (and `skipped=null`) on success, or 200 with `skipped=<reason>` and the previous intent (possibly null) when no key/timeout/model error; rate-limited 10/min |
+
+A review run also classifies lazily when the stored intent is missing or its `head_sha` differs from the PR head. That call's tokens and cost live on the intent record, never on any agent run.
+
+## Smart diff
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/pulls/:id/smart-diff` | `SmartDiffResponse` — deterministic, path-based role classification, no LLM call |
+
+Files are grouped by role in `core, tests, wiring, docs, boilerplate` order; empty roles are omitted from `groups`. `finding_lines` is always `[]` on every file — this endpoint never associates findings to files server-side; clients associate findings from `/pulls/:id/reviews` themselves. `pseudocode_summary` is always `null` (reserved). `split_suggestion.too_big` is always `false` and `proposed_splits` is always `[]`; `total_lines` is the sum of every file's `additions + deletions`. 404 when the PR is unknown.
+
 ## Agents
 
 | Method | Path | Contract |

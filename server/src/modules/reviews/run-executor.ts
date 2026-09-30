@@ -36,9 +36,10 @@ export type RunOutcome = {
 
 /**
  * Owns the background execution of queued agent runs (extracted from
- * ReviewService; behaviour unchanged). Loads the diff + intent once, then
- * map-reduces each agent, streaming events over the runBus and persisting each
- * review. Per-agent failures are isolated.
+ * ReviewService; behaviour unchanged). Loads the diff once, derives the PR
+ * intent once (best-effort, `container.intentService`), then map-reduces
+ * each agent, streaming events over the runBus and persisting each review.
+ * Per-agent failures are isolated.
  */
 export class ReviewRunExecutor {
   constructor(
@@ -49,7 +50,8 @@ export class ReviewRunExecutor {
 
   /**
    * Background execution of the queued agent runs (NOT awaited by the route).
-   * Loads the diff + intent once, then map-reduces each agent, streaming events
+   * Loads the diff once, derives the PR intent once (best-effort,
+   * `container.intentService`), then map-reduces each agent, streaming events
    * over the runBus and persisting each review. Per-agent failures are isolated.
    */
   async executeRuns(
@@ -105,6 +107,20 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // L03 — derive PR intent once (best-effort, never throws) on the SAME
+    // fanned-out runLog, so every queued agent's Live Log and persisted log
+    // shows the intent lines once, just like the diff step above.
+    const { digest: intentBrief } = await this.container.intentService.ensureForReview({
+      workspaceId,
+      pull,
+      repo,
+      diff,
+      log: runLog,
+    });
+    if (intentBrief) {
+      runLog.info(`intent: attached to review prompt (~${this.container.tokenizer.count(intentBrief)} token(s))`);
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -112,7 +128,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intentBrief);
         logger?.info(
           {
             runId,
@@ -144,6 +160,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    intentBrief: string | undefined,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -212,6 +229,11 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // L03 — derived PR intent digest (untrusted); omitted → no section, no
+        // scope rule. Independent of the repo-intel toggle above: an agent
+        // with repoIntel===false still gets intent, since it is not repo-intel
+        // enrichment.
+        ...(intentBrief ? { intentBrief } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),

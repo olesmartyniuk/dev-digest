@@ -67,6 +67,12 @@ export interface StructuredRequest<T> {
    * the `session_id` body field; ignored by providers that don't support it.
    */
   sessionId?: string;
+  /**
+   * OpenRouter only. `'tool'` forces a single function call named `schemaName`
+   * whose arguments are the JSON. Default `'json_schema'`. Other providers
+   * ignore it: Anthropic always uses a tool, OpenAI always uses json_schema.
+   */
+  outputMode?: 'json_schema' | 'tool';
 }
 
 export interface StructuredResult<T> {
@@ -224,6 +230,11 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Blob content at `ref` (`git show <ref>:<path>`). Callers MUST validate
+   * `ref` and `path` first. This method adds no guard of its own.
+   */
+  readFileAt(repo: RepoRef, ref: string, path: string): Promise<string>;
   clonePathFor(repo: RepoRef): string;
 }
 
