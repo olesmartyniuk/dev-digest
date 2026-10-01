@@ -31,6 +31,7 @@ export interface ReviewDto {
   findings: ReviewDtoFinding[];
 }
 
+/** Maps a persisted finding row to its API DTO shape. */
 export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
   return {
     id: row.id,
