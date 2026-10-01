@@ -12,6 +12,14 @@ function fakeDeps(): ToolDeps {
     listRuns: vi.fn(async () => []),
     listReviews: vi.fn(async () => []),
     listConventions: vi.fn(async () => []),
+    getBlastRadius: vi.fn(async () => ({
+      pr_id: 'pr1',
+      changed_symbols: [],
+      downstream: [],
+      summary: '0 changed symbols · 0 callers · 0 endpoints · 0 cron jobs',
+      degraded: false,
+      degraded_reason: null,
+    })),
   };
   return {
     api,
@@ -28,10 +36,11 @@ function fakeDeps(): ToolDeps {
 
 async function connect() {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createServer(fakeDeps());
+  const deps = fakeDeps();
+  const server = createServer(deps);
   const client = new Client({ name: 'test-client', version: '0.0.0' });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-  return { client, server };
+  return { client, server, deps };
 }
 
 interface JsonSchemaProp {
@@ -65,15 +74,16 @@ describe('devdigest-mcp server', () => {
     }
   });
 
-  it('get_blast_radius returns the mock', async () => {
-    const { client } = await connect();
+  it('get_blast_radius calls the API and returns BlastRadiusResponse', async () => {
+    const { client, deps } = await connect();
     const result = await client.callTool({
       name: 'get_blast_radius',
       arguments: { pr_id: '00000000-0000-0000-0000-000000000000' },
     });
     const content = result.content as Array<{ type: string; text?: string }>;
     const payload = JSON.parse(content[0]?.text ?? '{}');
-    expect(payload.summary).toMatch(/^\[MOCK\]/);
+    expect(payload.degraded).toBe(false);
+    expect(deps.api.getBlastRadius).toHaveBeenCalledWith('00000000-0000-0000-0000-000000000000');
   });
 
   it('get_findings with an invalid pr_id surfaces the GitHub-PR-number hint', async () => {

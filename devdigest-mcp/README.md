@@ -1,6 +1,6 @@
 # `@devdigest/mcp` — DevDigest MCP server
 
-A local **stdio** MCP server that lets MCP clients (Claude Code, Claude Desktop) list DevDigest's review agents, run one on a PR, read its findings, read a repo's conventions, and fetch a mock blast-radius sample — all over the DevDigest API running on `:3001`. It never imports `server/` source; it is a plain HTTP client.
+A local **stdio** MCP server that lets MCP clients (Claude Code, Claude Desktop) list DevDigest's review agents, run one on a PR, read its findings, read a repo's conventions, and read a PR's blast radius — all over the DevDigest API running on `:3001`. It never imports `server/` source; it is a plain HTTP client.
 
 ## Prerequisites
 
@@ -52,7 +52,7 @@ Opens the Inspector UI against this server over stdio — good for exercising ea
 
 ## Tools
 
-5 tools: `list_agents`, `run_agent_on_pr`, `get_findings`, `get_conventions`, `get_blast_radius` (mock). Full parameter tables, example outputs and error cases → [docs/tools.md](docs/tools.md).
+5 tools: `list_agents`, `run_agent_on_pr`, `get_findings`, `get_conventions`, `get_blast_radius`. Full parameter tables, example outputs and error cases → [docs/tools.md](docs/tools.md).
 
 ## Where to read next
 

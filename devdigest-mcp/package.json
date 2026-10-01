@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "DevDigest MCP server (stdio) — exposes agents, PR review runs, findings, conventions and a mock blast radius to MCP clients. Pure HTTP client of the API on :3001; never imports server code.",
+  "description": "DevDigest MCP server (stdio) — exposes agents, PR review runs, findings, conventions and blast radius to MCP clients. Pure HTTP client of the API on :3001; never imports server code.",
   "bin": {
     "devdigest-mcp": "./src/index.ts"
   },

@@ -162,21 +162,28 @@ sequenceDiagram
 
 ---
 
-## `get_blast_radius` (mock)
+## `get_blast_radius`
 
-**No endpoint.** `server/src/modules/index.ts:29-42` registers no blast module; the in-process facade (`repo-intel/service.ts:220`, `types.ts:147`) is not reachable over HTTP in this lesson. This tool makes **no** HTTP call and always returns the same static `BlastRadius` sample.
+**Endpoint:** `GET /pulls/:id/blast` — `server/src/modules/blast/routes.ts` → `BlastService.get(workspaceId, prId)`, a read-only reshape of the repo-intel facade's `getBlastRadius` (no new analysis, no LLM call).
 
 | Param | Type | Notes |
 |---|---|---|
-| `pr_id` | string (uuid) | Not used by the mock, required for a consistent interface |
-| `changed_files` | array of strings | Ignored by the mock |
+| `pr_id` | string (uuid) | DevDigest pull-request id |
+
+**Example payload:**
 
 ```json
 {
+  "pr_id": "pr1",
   "changed_symbols": [{ "name": "ReviewService.runReview", "file": "server/src/modules/reviews/service.ts", "kind": "method" }],
   "downstream": [{ "symbol": "ReviewService.runReview", "callers": [{ "name": "reviewsRoutes", "file": "server/src/modules/reviews/routes.ts", "line": 37 }], "endpoints_affected": ["POST /pulls/:id/review"], "crons_affected": [] }],
-  "summary": "[MOCK] Static sample — blast radius is not wired to repo-intel yet (L04). Do not base decisions on it."
+  "summary": "1 changed symbol · 1 caller · 1 endpoint · 0 cron jobs",
+  "degraded": false,
+  "degraded_reason": null
 }
 ```
 
-There is no error path besides input validation, since no HTTP call is made.
+**Notes:**
+- `degraded: true` (with `degraded_reason`) means the repo index is off, partial, or missing — the ripgrep fallback always reports `no_data`, even when it found real callers, so `note` asks the user to re-sync the repo in the DevDigest UI before calling again.
+- An empty, non-degraded `downstream` gets a `note` saying the change is locally contained, with a pointer to `run_agent_on_pr`/`get_findings`.
+- Unknown PR (404) → "Pull request <id> not found — pr_id must be the DevDigest PR uuid, not the GitHub PR number — ask the user for it (DevDigest UI: Repos → Pull requests)."

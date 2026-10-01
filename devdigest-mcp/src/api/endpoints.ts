@@ -1,4 +1,12 @@
-import type { Agent, ReviewRunResponse, RunSummary, ReviewRecord, Convention, RunRequest } from '@devdigest/shared';
+import type {
+  Agent,
+  ReviewRunResponse,
+  RunSummary,
+  ReviewRecord,
+  Convention,
+  RunRequest,
+  BlastRadiusResponse,
+} from '@devdigest/shared';
 import type { HttpClient } from './client.js';
 
 /**
@@ -13,6 +21,7 @@ export interface DevDigestApi {
   listRuns(prId: string): Promise<RunSummary[]>; // GET  /pulls/:id/runs
   listReviews(prId: string): Promise<ReviewRecord[]>; // GET  /pulls/:id/reviews
   listConventions(repoId: string): Promise<Convention[]>; // GET  /repos/:id/conventions
+  getBlastRadius(prId: string): Promise<BlastRadiusResponse>; // GET  /pulls/:id/blast
 }
 
 export function createDevDigestApi(http: HttpClient): DevDigestApi {
@@ -24,5 +33,7 @@ export function createDevDigestApi(http: HttpClient): DevDigestApi {
     listReviews: (prId) => http.get<ReviewRecord[]>(`/pulls/${encodeURIComponent(prId)}/reviews`),
     listConventions: (repoId) =>
       http.get<Convention[]>(`/repos/${encodeURIComponent(repoId)}/conventions`),
+    getBlastRadius: (prId) =>
+      http.get<BlastRadiusResponse>(`/pulls/${encodeURIComponent(prId)}/blast`),
   };
 }

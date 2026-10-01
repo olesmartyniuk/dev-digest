@@ -15,7 +15,7 @@ const INSTRUCTIONS = [
   'DevDigest exposes agents, PR reviews, findings and conventions for a locally running DevDigest API.',
   'Every id (pr_id, repo_id, agent_id, run_id) is a DevDigest uuid — a GitHub PR number is not a valid pr_id.',
   'The usual order is list_agents -> run_agent_on_pr, which already waits and returns the verdict and findings in one call; call get_findings only to page further or re-read a past review later.',
-  'get_blast_radius is a static mock — it does not run real analysis.',
+  "get_blast_radius reads the repo index DevDigest built at clone time; if its result says degraded, treat it as possibly incomplete.",
 ].join(' ');
 
 /** Abortable sleep: resolves after `ms`, or rejects immediately if `signal` aborts first or mid-wait. */

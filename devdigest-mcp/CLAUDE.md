@@ -46,8 +46,7 @@ No secrets here: the API needs no key, and provider keys stay server-side (`~/.d
 | `src/tools/wait-for-runs.ts` | the trigger→poll loop `run_agent_on_pr` drives |
 | `src/tools/run-agent-on-pr.ts` | `run_agent_on_pr` |
 | `src/tools/get-conventions.ts` | `get_conventions` |
-| `src/tools/get-blast-radius.ts` | `get_blast_radius` (mock) |
-| `src/fixtures/blast-radius.mock.ts` | the static `BlastRadius` sample |
+| `src/tools/get-blast-radius.ts` | `get_blast_radius` |
 | `src/server.ts` | `createServer`/`defaultDeps` — the composition root |
 | `src/index.ts` | the stdio entry point |
 | `test/` | hermetic unit tests, one file per tool/module above |
@@ -74,5 +73,5 @@ No secrets here: the API needs no key, and provider keys stay server-side (`~/.d
 
 ## Do not touch
 
-- `get_blast_radius` stays a static mock until a `server` blast-radius route exists; only its handler body changes then.
+- `get_blast_radius` is a thin pass-through of `GET /pulls/:id/blast` — no analysis here.
 - `@devdigest/shared` (either vendored copy) — read-only here, through `import type` via the tsconfig `paths` alias to the server copy.
