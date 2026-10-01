@@ -12,6 +12,7 @@ Prose overview → [README.md](README.md) · system detail → [docs/architectur
 | `client/` | `@devdigest/web` | Next.js studio (the UI) | 3000 |
 | `reviewer-core/` | `@devdigest/reviewer-core` | Pure review engine — no I/O except an injected LLM | — |
 | `e2e/` | `@devdigest/e2e` | Deterministic browser flows (agent-browser) | — |
+| `devdigest-mcp/` | `@devdigest/mcp` | MCP server (stdio) — exposes agents, review runs, findings, conventions to MCP clients over the API | — |
 | `server/src/vendor/shared` | `@devdigest/shared` | Zod contracts used by every package | — |
 | `docs/agent-prompts/` | — | Built-in reviewer system prompts, model guidance | — |
 | `.claude/skills/` | — | Vendored AI skills (pinned by hash in `skills-lock.json`) + the repo's own `engineering-insights` | — |
