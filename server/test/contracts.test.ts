@@ -19,6 +19,7 @@ import {
   PrIntentResponse,
   PromptAssembly,
   SmartDiffRole,
+  BlastRadiusResponse,
 } from '@devdigest/shared';
 
 /**
@@ -106,6 +107,29 @@ describe('AI contracts parse fixtures', () => {
         ],
       }),
     ).not.toThrow();
+  });
+
+  it('BlastRadiusResponse (L04 — GET /pulls/:id/blast)', () => {
+    const base = {
+      changed_symbols: [{ name: 'rateLimit', file: 'a.ts', kind: 'function' }],
+      downstream: [
+        {
+          symbol: 'rateLimit',
+          callers: [{ name: 'publicRouter', file: 'b.ts', line: 23 }],
+          endpoints_affected: ['GET /x'],
+          crons_affected: [],
+        },
+      ],
+      summary: '1 changed symbol · 1 caller · 1 endpoint · 0 cron jobs',
+      pr_id: 'pr1',
+    };
+    expect(() => BlastRadiusResponse.parse({ ...base, degraded: false, degraded_reason: null })).not.toThrow();
+    expect(() =>
+      BlastRadiusResponse.parse({ ...base, degraded: true, degraded_reason: 'no_data' }),
+    ).not.toThrow();
+    expect(() =>
+      BlastRadiusResponse.parse({ ...base, degraded: true, degraded_reason: 'bogus' }),
+    ).toThrow();
   });
 
   it('PrIntentView / PrIntentResponse (L03 — GET/POST /pulls/:id/intent)', () => {

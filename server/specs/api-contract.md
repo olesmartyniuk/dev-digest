@@ -65,6 +65,14 @@ A review run also classifies lazily when the stored intent is missing or its `he
 
 Files are grouped by role in `core, tests, wiring, docs, boilerplate` order; empty roles are omitted from `groups`. `finding_lines` is always `[]` on every file — this endpoint never associates findings to files server-side; clients associate findings from `/pulls/:id/reviews` themselves. `pseudocode_summary` is always `null` (reserved). `split_suggestion.too_big` is always `false` and `proposed_splits` is always `[]`; `total_lines` is the sum of every file's `additions + deletions`. 404 when the PR is unknown.
 
+## Blast radius
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/pulls/:id/blast` | `BlastRadiusResponse` — changed symbols → callers (file:line) → endpoints/crons, reshaped from the repo-intel index; no LLM call |
+
+`degraded=true` with a `degraded_reason` when the index is off, partial, or missing (the ripgrep fallback always reports `no_data`, even with callers). `downstream` lists only symbols with ≥1 caller. Endpoints and crons are attributed only on the non-degraded path. 404 when the PR is unknown. A broken index yields `degraded_reason='index_failed'`, never a 500.
+
 ## Agents
 
 | Method | Path | Contract |
