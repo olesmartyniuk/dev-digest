@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, index } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 import { skills } from './skills';
@@ -60,4 +60,27 @@ export const agentSkills = pgTable(
     order: integer('order').notNull().default(0),
   },
   (t) => ({ pk: primaryKey({ columns: [t.agentId, t.skillId] }) }),
+);
+
+/**
+ * Project Context (L05) — an agent's OWN attached documents (repo-relative
+ * `.md` paths), in prompt order. Paths only; content is read from the clone
+ * at run time (`ContextService.resolveForRun`), never stored here. An agent's
+ * EFFECTIVE context also includes its linked, enabled skills' documents (see
+ * `assembleContextPaths`) — this table holds only the agent's own set.
+ */
+export const agentContextDocs = pgTable(
+  'agent_context_docs',
+  {
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    order: integer('order').notNull().default(0),
+    createdAt: now(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.path] }),
+    pathIdx: index('agent_context_docs_path_idx').on(t.path),
+  }),
 );

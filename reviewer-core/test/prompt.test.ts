@@ -4,7 +4,14 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt, INTENT_SCOPE_RULE } from '../src/prompt.js';
+import {
+  assemblePrompt,
+  INTENT_SCOPE_RULE,
+  PROJECT_CONTEXT_RULE,
+  capProjectContext,
+  renderProjectContextBlock,
+  MAX_PROJECT_CONTEXT_CHARS,
+} from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -139,5 +146,93 @@ describe('assemblePrompt — ## PR intent (L03)', () => {
       intentBrief: '   \n\t  ',
     });
     expect(withWhitespace).toEqual(baseline);
+  });
+});
+
+describe('assemblePrompt — ## Project context (L05)', () => {
+  it('with no specs, produces a BYTE-IDENTICAL prompt to today\'s (no rule, no section)', () => {
+    const withoutSpecs = assemblePrompt({ system: 'sys', diff: 'DIFF' });
+    const withEmptySpecs = assemblePrompt({ system: 'sys', diff: 'DIFF', specs: [] });
+    expect(withEmptySpecs).toEqual(withoutSpecs);
+    expect(withoutSpecs.messages[1]!.content).not.toContain('## Project context');
+    expect(withoutSpecs.messages[0]!.content).not.toContain(PROJECT_CONTEXT_RULE);
+    expect(withoutSpecs.assembly.specs).toBeNull();
+  });
+
+  it('renders the section (untrusted-wrapped, Source-prefixed by the caller) and appends the rule', () => {
+    const { messages, assembly } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      specs: ['Source: docs/architecture.md\n\nModules must not import db/ directly.'],
+    });
+    const user = messages[1]!.content;
+    expect(user).toContain('## Project context');
+    expect(user).toContain('<untrusted source="spec-0">');
+    expect(user).toContain('Source: docs/architecture.md');
+    expect(user.indexOf('## Project context')).toBeLessThan(user.indexOf('## Diff to review'));
+    expect(messages[0]!.content).toContain(PROJECT_CONTEXT_RULE);
+    expect(assembly.specs).toContain('Source: docs/architecture.md');
+  });
+
+  it('caps a huge specs array: the crossing entry is sliced with the marker (or dropped), and truncated is true', () => {
+    const big = 'x'.repeat(MAX_PROJECT_CONTEXT_CHARS);
+    const { specs, truncated } = capProjectContext(['a'.repeat(100), big, 'c'.repeat(100)]);
+    expect(truncated).toBe(true);
+    // The first entry fit whole; the huge second entry crosses the limit and is
+    // either sliced (with the marker) or dropped; the third never gets a turn.
+    expect(specs[0]).toBe('a'.repeat(100));
+    expect(specs.length).toBeLessThanOrEqual(2);
+    if (specs.length === 2) {
+      expect(specs[1]!.endsWith('…[truncated: project context size cap reached]')).toBe(true);
+    }
+    expect(specs.some((s) => s.startsWith('c'))).toBe(false);
+  });
+
+  it('is idempotent — capping an already-capped array returns it unchanged with truncated:false', () => {
+    const once = capProjectContext(['a'.repeat(100), 'x'.repeat(MAX_PROJECT_CONTEXT_CHARS)]);
+    expect(once.truncated).toBe(true);
+    const twice = capProjectContext(once.specs);
+    expect(twice.specs).toEqual(once.specs);
+    expect(twice.truncated).toBe(false);
+  });
+
+  it('renderProjectContextBlock equals the section rendered inside assemblePrompt', () => {
+    const specs = ['Source: docs/a.md\n\nRule A.', 'Source: docs/b.md\n\nRule B.'];
+    const { messages } = assemblePrompt({ system: 'sys', diff: 'DIFF', specs });
+    const section = renderProjectContextBlock(specs);
+    expect(section).toBeDefined();
+    expect(messages[1]!.content).toContain(section!);
+  });
+
+  it('drops empty/whitespace-only entries and reports truncated:true even when nothing was sliced', () => {
+    // Regression: the plan requires dropped-empty entries to also flip
+    // `truncated`, distinct from the size-cap slicing path exercised above.
+    const { specs, truncated } = capProjectContext(['Source: docs/a.md\n\nReal content.', '   ', '']);
+    expect(specs).toEqual(['Source: docs/a.md\n\nReal content.']);
+    expect(truncated).toBe(true);
+  });
+
+  it('drops (rather than slices) the crossing entry when too little budget remains for a useful slice', () => {
+    // Regression for the slice-vs-drop branch: when `remaining <= marker.length + 200`
+    // the crossing entry is dropped whole, not sliced with a near-empty marker.
+    const marker = '\n…[truncated: project context size cap reached]';
+    const maxChars = 50 + marker.length + 100; // remaining before entry 2 = 150, below the 245ish threshold
+    const first = 'a'.repeat(50);
+    const second = 'b'.repeat(200);
+    const { specs, truncated } = capProjectContext([first, second], maxChars);
+    expect(specs).toEqual([first]);
+    expect(truncated).toBe(true);
+  });
+
+  it('slices (rather than drops) the crossing entry when ample budget remains for a useful slice', () => {
+    const marker = '\n…[truncated: project context size cap reached]';
+    const maxChars = 50 + marker.length + 300; // remaining before entry 2 is comfortably above the threshold
+    const first = 'a'.repeat(50);
+    const second = 'b'.repeat(1000);
+    const { specs, truncated } = capProjectContext([first, second], maxChars);
+    expect(specs).toHaveLength(2);
+    expect(specs[1]!.endsWith(marker)).toBe(true);
+    expect(specs[1]!.length).toBeLessThan(second.length);
+    expect(truncated).toBe(true);
   });
 });

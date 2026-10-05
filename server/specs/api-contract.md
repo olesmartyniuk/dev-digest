@@ -95,6 +95,19 @@ Files are grouped by role in `core, tests, wiring, docs, boilerplate` order; emp
 
 A candidate is persisted only if a code-level check re-read the cited file and found the cited snippet — a wrong line number is corrected rather than dropped, and every rejection is reported in `drops` with its reason. The model never writes to the database.
 
+## Project context
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/repos/:id/context` | listing of `.md` documents under the configured roots (`DEVDIGEST_CONTEXT_ROOTS`, default `specs,docs,insights`), any depth. Scans on a cache miss, otherwise serves the in-memory cache; `used_by` counts are always live |
+| POST | `/repos/:id/context/rescan` | forces a fresh scan, bypassing the cache. Rate-limited to 10/min |
+| GET | `/repos/:id/context/file` | one document's raw source (`?path=`), read-only — nothing is ever written to the clone |
+| GET, PUT | `/agents/:id/context` | an agent's own attached paths (`PUT` replaces the whole ordered list), plus (`GET`) its inherited paths from linked skills and the resulting effective (run-time) order |
+| GET, PUT | `/skills/:id/context` | a skill's own attached paths, inherited by every agent linking it |
+| GET | `/skills/:id/context/preview` | the serialized `## Project context` block a skill would contribute (`?repo_id=`) — the one agent/skill-level "serializes as" preview |
+
+`clone_status` is `ready`, `not_cloned`, or `missing` — the latter two are a `200` empty state, never an error. `PUT` bodies are validated as repo-relative `.md` paths under a configured root; an unsafe or unrooted path is `422`. Attaching a path never reads or writes the clone; paths are read fresh at run time, so a path missing from the repo is skipped (never fails the run) and silently absent from that run's `specs_read`.
+
 ## Repo intelligence
 
 | Method | Path | Contract |

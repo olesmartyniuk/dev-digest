@@ -10,7 +10,37 @@
   "kb": "{kb}kb",
   "empty": {
     "title": "No spec files yet",
-    "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
+    "body": "Add Markdown files under any specs/, docs/ or insights/ folder in this repository, then rescan. Attach them to agents or skills to ground reviews in your own requirements.",
+    "notClonedTitle": "Repository not cloned yet",
+    "notClonedBody": "This repository hasn't finished cloning. Project Context reads from the local clone once it's ready.",
+    "missingBody": "The local clone for this repository is missing from disk. Refresh the repository to clone it again."
+  },
+  "status": {
+    "line": "{count, plural, one {# file} other {# files}} · scanned {ago}",
+    "never": "not scanned yet",
+    "rescan": "Rescan",
+    "rescanning": "Rescanning…"
+  },
+  "roots": "Searched folders: {roots}",
+  "list": {
+    "usedBy": "used by {agents, plural, one {# agent} other {# agents}} · {skills, plural, one {# skill} other {# skills}}"
+  },
+  "picker": {
+    "attachedTitle": "Attached — prompt order",
+    "allTitle": "All documents",
+    "attachedCount": "{attached} of {total} attached",
+    "inheritedCount": "+{count} inherited from skills",
+    "tokens": "~{tokens} tokens",
+    "overCap": "The attached set exceeds the {cap}-character Project context limit and will be truncated in the prompt.",
+    "filterPlaceholder": "Filter documents…",
+    "preview": "Preview",
+    "remove": "Remove",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "notInRepo": "not in this repo",
+    "noRepo": "Select a repository to browse its project documents.",
+    "inheritedFrom": "via skill {name}",
+    "inheritedDisabled": "skill disabled — not used"
   },
   "mode": {
     "preview": "preview",

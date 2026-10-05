@@ -55,6 +55,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-22** — `error TS2742: The inferred type of 's' cannot be named without a reference to '.pnpm/csstype@…'` from a `styles.ts` means the style object spreads a `CSSProperties`-annotated constant (a shared `ellipsis` helper, for instance): `declaration: true` forces TS to name the resulting type and it cannot reach csstype from there. The per-key `… satisfies CSSProperties` pattern the other style files use is unaffected, so inline the shared properties instead of spreading an annotated const — annotating the whole object as `Record<string, CSSProperties>` would fix the error but throw away per-key checking. Evidence: `client/tsconfig.json:15`, `client/src/components/diff-viewer/styles.ts:6`.
 
+- **2026-10-04** — `useFormatter().relativeTime(date)` from `next-intl` throws `IntlError: ENVIRONMENT_FALLBACK` (logged, not fatal — it falls back to `new Date()`) whenever no `now` reference instant is configured, because the root layout's `<NextIntlClientProvider locale messages>` (`client/src/app/layout.tsx:28`) never passes a `now` prop. Every prior relative-time display in this codebase (`PRRow`) sidesteps this by using a hand-rolled `relativeTime` helper instead of next-intl's own formatter, so `IndexStatusLine` (L05, Project Context) is the first real call site and the first to surface the warning — any future `useFormatter().relativeTime` usage will hit it too until the root provider is given a stable `now`. Evidence: `client/src/app/repos/[repoId]/context/_components/IndexStatusLine/IndexStatusLine.tsx:15`, `client/src/app/layout.tsx:28`.
+
 ## Session Notes
 
 ## Open Questions

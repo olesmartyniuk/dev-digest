@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
@@ -9,6 +12,7 @@ import { ReviewRepository } from '../src/modules/reviews/repository.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
+import { PROJECT_CONTEXT_RULE } from '@devdigest/reviewer-core';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -62,11 +66,15 @@ const REVIEW_FIXTURE: Review = {
 };
 
 let repoSeq = 0;
-async function setupRepoAndPr(db: PgFixture['handle']['db'], workspaceId: string) {
+async function setupRepoAndPr(
+  db: PgFixture['handle']['db'],
+  workspaceId: string,
+  opts: { clonePath?: string } = {},
+) {
   const name = `payments-api-${repoSeq++}`;
   const [repo] = await db
     .insert(t.repos)
-    .values({ workspaceId, owner: 'acme', name, fullName: `acme/${name}` })
+    .values({ workspaceId, owner: 'acme', name, fullName: `acme/${name}`, clonePath: opts.clonePath ?? null })
     .returning();
   const [pr] = await db
     .insert(t.pullRequests)
@@ -419,6 +427,61 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
     await app.close();
+  });
+
+  it('L05: project context is read from the clone, capped, and shows up in specs_read + the actual LLM call + the prompt trace', async () => {
+    const clonePath = await mkdtemp(join(tmpdir(), 'devdigest-reviews-context-'));
+    try {
+      await mkdir(join(clonePath, 'docs'), { recursive: true });
+      await writeFile(join(clonePath, 'docs', 'rule.md'), 'Modules must not import db/ directly.', 'utf8');
+
+      const app = await appWith(REVIEW_FIXTURE);
+      // `Container.llm(id)` returns the exact injected override back
+      // (`container.ts`'s `const injected = this.overrides.llm?.[id]; if
+      // (injected) return injected;`), so this IS the same MockLLMProvider
+      // `appWith` constructed — letting the test inspect what it actually
+      // RECEIVED (`llmMock.calls`), not just what got persisted to the trace.
+      const llmMock = (await app.container.llm('openai')) as MockLLMProvider;
+      const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId, { clonePath });
+      const agent = (
+        await app.inject({
+          method: 'POST',
+          url: '/agents',
+          payload: { name: 'Context Reviewer', provider: 'openai', model: 'gpt-4.1', system_prompt: 'rev' },
+        })
+      ).json();
+      // docs/gone.md is attached but does not exist in the clone — it must be
+      // skipped (AC-15), never fail the run.
+      await app.inject({
+        method: 'PUT',
+        url: `/agents/${agent.id}/context`,
+        payload: { paths: ['docs/rule.md', 'docs/gone.md'] },
+      });
+
+      const runId = (
+        await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+      ).json().runs[0].run_id;
+      await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+      const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+      expect(run!.status).toBe('done');
+
+      // The actual call the mock LLM received — not merely what was persisted.
+      const call = llmMock.calls.find((c) => c.method === 'completeStructured');
+      expect(call).toBeDefined();
+      const messages = (call!.req as { messages: { role: string; content: string }[] }).messages;
+      const systemMessage = messages.find((m) => m.role === 'system');
+      expect(systemMessage?.content).toContain(PROJECT_CONTEXT_RULE);
+      const userMessage = messages.find((m) => m.role === 'user');
+      expect(userMessage?.content).toContain('Source: docs/rule.md');
+
+      const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+      expect(trace.specs_read).toEqual(['docs/rule.md']);
+      expect(trace.prompt_assembly.specs).toContain('Source: docs/rule.md');
+      await app.close();
+    } finally {
+      await rm(clonePath, { recursive: true, force: true });
+    }
   });
 
   it('deleteReviewByRunId clears a review (+ findings, cascade) already persisted for a run', async () => {

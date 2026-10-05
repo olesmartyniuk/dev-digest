@@ -47,6 +47,8 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - The editor configures name, provider, model, system prompt, review strategy, the per-agent repo-intel toggle, and the severity gate.
 - Model lists come from `/agents/:id/models` or `/providers/:id/models` and degrade to empty when no key is configured — the editor must stay usable.
 - Saving creates a new agent version; history is available.
+- `?tab=context` (SPEC-01 / L05): attach/reorder this agent's own project-context documents (`GET`/`PUT /agents/:id/context`), from the **active repo**'s listing. Shows every linked skill's inherited documents first (including disabled skills, dimmed), then the agent's own, in the effective (run-time) order. Linking/unlinking a skill (Skills tab) invalidates this tab's data.
+- The Skills Lab's skill detail pane (`/skills`) has its own "Project context to use" **section** (not a tab, `GET`/`PUT /skills/:id/context`) that any agent linking that skill inherits from. It shows a live "SERIALIZES AS" preview (`GET /skills/:id/context/preview`) of the exact `## Project context` block that skill would contribute, truncation warning included.
 
 ## `/repos/:repoId/conventions` — Conventions Extractor
 
@@ -58,6 +60,16 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - Re-scanning preserves accepted and rejected rows and does not re-ask about a rule the user already judged.
 - **Create skill** opens the merged draft from `GET /repos/:id/conventions/skill-draft`. Name, description, enabled state and the whole markdown body are editable before saving via `POST /repos/:id/conventions/skill`, which can also attach the new skill to agents.
 - An unknown `repoId` renders the repo-not-found state; a repo that has not finished cloning fails the scan with that reason rather than an empty list.
+
+## `/repos/:repoId/context` — Project Context
+
+- Data: `GET /repos/:id/context` (scans on a cache miss, otherwise serves the server's in-memory cache). "Rescan" forces a fresh scan via `POST /repos/:id/context/rescan`.
+- Lists every `.md` document under the repo's configured roots (`specs/`, `docs/`, `insights/` by default), at any depth, sorted alphabetically, each with its root badge and "used by N agent(s) · M skill(s)" count.
+- Selecting a document shows it in the right pane, **preview** (rendered Markdown) by default or **edit** (raw source) via `?mode=`; edit is READ-ONLY — there is no save button, and nothing here ever writes to the clone.
+- The status line shows the document count and when the scan last ran — no chunk/index count (this is a folder scan, not a semantic index).
+- Empty states are distinct and are not errors: no clone yet (`clone_status: 'not_cloned'`), clone missing from disk (`'missing'`), and clone ready but no matching documents found.
+- An unknown `repoId` renders the repo-not-found state, not a crash.
+- Attaching a document to an agent or skill is done from their own editors (`/agents/:id?tab=context`, or the Skills Lab's skill detail pane), not from this page — this page is discovery/preview only.
 
 ## `/settings/:section`
 

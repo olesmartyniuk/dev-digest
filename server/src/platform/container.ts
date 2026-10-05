@@ -27,6 +27,7 @@ import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { SkillsService } from '../modules/skills/service.js';
 import { IntentService } from '../modules/intent/service.js';
+import { ContextService } from '../modules/context/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -76,6 +77,7 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _skillsService?: SkillsService;
   private _intentService?: IntentService;
+  private _contextService?: ContextService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -120,6 +122,15 @@ export class Container {
    */
   get intentService(): IntentService {
     return (this._intentService ??= new IntentService(this));
+  }
+
+  /**
+   * Project Context (L05) — scan/attach/preview + run-time resolution. MUST be
+   * a singleton: it owns the in-memory per-repo scan cache (D8), which routes
+   * and the review run executor share.
+   */
+  get contextService(): ContextService {
+    return (this._contextService ??= new ContextService(this));
   }
 
   get codeIndex(): CodeIndex {

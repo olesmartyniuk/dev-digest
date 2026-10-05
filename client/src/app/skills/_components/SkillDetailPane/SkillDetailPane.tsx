@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { FormField, TextInput, SelectInput, Textarea, Toggle, Button, Badge } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { SKILL_TYPES } from "../../constants";
+import { SkillContextSection } from "../SkillContextSection";
 import { useSkillDetailForm } from "./useSkillDetailForm";
 import { s } from "./styles";
 
@@ -42,6 +43,11 @@ export function SkillDetailPane({ skill }: { skill: Skill }) {
       <FormField label={t("preview.bodyLabel")} hint={t("preview.bodyHint")}>
         <Textarea value={values.body} onChange={(v) => set("body", v)} rows={14} mono />
       </FormField>
+
+      {/* L05 — Project context attach/preview. A SECTION (not a tab, per the
+          spec): it saves through its own mutation and is independent of the
+          form's Save button below. */}
+      <SkillContextSection skillId={skill.id} />
 
       <div style={s.actions}>
         <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending}>

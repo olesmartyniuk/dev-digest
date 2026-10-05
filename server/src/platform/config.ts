@@ -26,6 +26,9 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
+  // Project Context (L05) — comma-separated directory names whose `.md` files
+  // are discovered at any depth in a repo's clone. Default: specs,docs,insights.
+  DEVDIGEST_CONTEXT_ROOTS: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
@@ -59,6 +62,12 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Directory names whose `.md` files form a repo's Project Context (any
+   * depth) — the Project Context folder scan (L05). Default `['specs', 'docs',
+   * 'insights']`.
+   */
+  contextRoots: string[];
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -77,5 +86,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    contextRoots: (parsed.DEVDIGEST_CONTEXT_ROOTS ?? 'specs,docs,insights')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !s.includes('/') && !s.includes('\\')),
   };
 }
