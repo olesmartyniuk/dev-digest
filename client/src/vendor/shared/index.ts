@@ -7,6 +7,7 @@
  *  - contracts/blast      BlastRadiusResponse, BlastDegradedReason (L04)
  *  - contracts/knowledge  Conformance, Onboarding, EvalRun/EvalCase, MemoryItem,
  *                         Skill/CommunitySkill, ConventionCandidate, Agent
+ *  - contracts/onboarding OnboardingTour, OnboardingSectionKind, OnboardingIndexNotReady
  *  - contracts/conventions Convention, ConventionExtractResult, ConventionSkillDraft
  *  - contracts/trace      RunTrace, RunEvent, RunLogLine (single-document trace)
  *  - contracts/platform   Settings, ConnTestResult, Repo, PrMeta/PrDetail, SpecFile, …
@@ -26,6 +27,7 @@ export * from './contracts/conventions.js';
 export * from './contracts/trace.js';
 export * from './contracts/platform.js';
 export * from './contracts/project-context.js';
+export * from './contracts/onboarding.js';
 export * from './contracts/why.js';
 export * from './contracts/eval-ci.js';
 export * from './contracts/observability.js';

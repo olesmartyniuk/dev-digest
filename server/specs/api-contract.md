@@ -108,6 +108,16 @@ A candidate is persisted only if a code-level check re-read the cited file and f
 
 `clone_status` is `ready`, `not_cloned`, or `missing` — the latter two are a `200` empty state, never an error. `PUT` bodies are validated as repo-relative `.md` paths under a configured root; an unsafe or unrooted path is `422`. Attaching a path never reads or writes the clone; paths are read fresh at run time, so a path missing from the repo is skipped (never fails the run) and silently absent from that run's `specs_read`.
 
+## Onboarding tour
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/repos/:id/onboarding` | the stored tour, as `OnboardingTour`. Always `200` for a known repo — `status: 'not_generated'` with `tour: null` is the empty state, not an error. `limited_data` is recomputed from the current repo-intel facts on every read |
+| POST | `/repos/:id/onboarding/generate` | (re)generate the tour inline (one LLM call), rate-limited to 6/min. `409` `index_not_ready` (with `details.index_status`) unless the repo's index status is `full` — no model call is made in that case. `502` `external_service_error` on a model failure, timeout, or a result that fails the schema. On any failure the previously stored tour (if any) is left untouched — last write wins otherwise, with no concurrency guard |
+| GET | `/repos/:id/onboarding/file` | one source file's content (`?path=`), read-only. Serves only paths that appear in the stored tour's `links` — any other path is `404`; a path escaping the clone or shaped like an absolute/Windows path is `422` |
+
+The tour is always exactly 5 fixed sections (`architecture`, `critical_paths`, `how_to_run`, `reading_path`, `first_tasks`), generated from the repo-intel repo map/critical paths/top files plus the repo's Project Context documents. The feature-model override comes from `Settings → Feature Models` (`onboarding` id); the registry default is `openrouter`/`deepseek-v4-flash`.
+
 ## Repo intelligence
 
 | Method | Path | Contract |

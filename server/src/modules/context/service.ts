@@ -58,12 +58,7 @@ export class ContextService {
       return { repo_id: repoId, clone_status: 'missing', roots, documents: [], scanned_at: null, cap_chars: capChars };
     }
 
-    let cached = this.cache.get(repoId);
-    if (!cached || opts.rescan) {
-      const docs = await scanContextDocs(repoRow.clonePath, roots);
-      cached = { docs, scannedAt: new Date().toISOString() };
-      this.cache.set(repoId, cached);
-    }
+    const cached = await this.scanCached(repoId, repoRow.clonePath, opts.rescan ?? false);
 
     // AC-18 — always live, never cached.
     const usedBy = await this.repo.usageCounts(workspaceId);
@@ -76,6 +71,45 @@ export class ContextService {
     );
 
     return { repo_id: repoId, clone_status: 'ready', roots, documents, scanned_at: cached.scannedAt, cap_chars: capChars };
+  }
+
+  /**
+   * Onboarding (SPEC-02): the repo's scanned documents, as capped prompt
+   * entries. Serves from the same scan cache as `GET /repos/:id/context`.
+   * Never throws for a missing clone — returns empty.
+   */
+  async promptDocuments(
+    workspaceId: string,
+    repoId: string,
+  ): Promise<{ entries: string[]; paths: string[]; truncated: boolean }> {
+    const repoRow = await this.repo.getRepo(workspaceId, repoId);
+    if (!repoRow) throw new NotFoundError('Repository not found');
+
+    if (!repoRow.clonePath || !(await cloneDirExists(repoRow.clonePath))) {
+      return { entries: [], paths: [], truncated: false };
+    }
+
+    const cached = await this.scanCached(repoId, repoRow.clonePath, false);
+    const entries = cached.docs.map((doc) => formatContextEntry(doc.path, doc.content));
+    const capped = capProjectContext(entries);
+    const paths = cached.docs.slice(0, capped.specs.length).map((d) => d.path);
+
+    return { entries: capped.specs, paths, truncated: capped.truncated };
+  }
+
+  /** Shared scan-cache read, used by both `listDocuments` and `promptDocuments`. */
+  private async scanCached(
+    repoId: string,
+    clonePath: string,
+    rescan = false,
+  ): Promise<{ docs: ScannedDoc[]; scannedAt: string }> {
+    const cached = this.cache.get(repoId);
+    if (cached && !rescan) return cached;
+    const roots = this.container.config.contextRoots;
+    const docs = await scanContextDocs(clonePath, roots);
+    const fresh = { docs, scannedAt: new Date().toISOString() };
+    this.cache.set(repoId, fresh);
+    return fresh;
   }
 
   /** `GET /repos/:id/context/file?path=` — the read-only raw-source preview (D3). */

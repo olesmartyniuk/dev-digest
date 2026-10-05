@@ -71,6 +71,16 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - An unknown `repoId` renders the repo-not-found state, not a crash.
 - Attaching a document to an agent or skill is done from their own editors (`/agents/:id?tab=context`, or the Skills Lab's skill detail pane), not from this page — this page is discovery/preview only.
 
+## `/repos/:repoId/onboarding` — Onboarding Tour
+
+- Data: `GET /repos/:id/onboarding` (the stored tour, or the empty `not_generated` state), `POST /repos/:id/onboarding/generate` (inline, one LLM call), `GET /repos/:id/index-state` (drives the blocked/ready gate), `GET /repos/:id/onboarding/file?path=` (the in-app source-file drawer).
+- Always exactly 5 sections, in a fixed order: **Architecture** (overview + one mermaid diagram), **Critical paths** (per-file reason + "Open" into the in-app viewer, never a GitHub link), **How to run locally** (extracted shell commands, each with its own Copy button, or a "no commands could be grounded" hint), **Reading path** (numbered files in the order to read them), **First tasks** (3–4 numbered starter tasks with a file/area pointer).
+- **Blocked vs limited-data, two distinct notices:** generation requires the repo's index status to be `full` — while it isn't, an inline notice explains why and the Generate button is disabled (no LLM call is ever attempted from the blocked state). Once a tour exists, a separate `limited_data` notice can appear alongside it when the underlying index is thin — this is a quality warning, not a blocker, and doesn't prevent viewing or regenerating.
+- A failed (re)generation shows an error with Retry **above** the still-visible previous tour — regenerating never clears an existing tour until the new one succeeds.
+- Opening a critical-path/reading-path/first-task link opens a read-only drawer (`?file=`, `?mode=preview|raw` in the URL) with the file's source — Markdown files get a preview/raw tab toggle, everything else is raw-only. No save/edit control anywhere.
+- "Last refreshed" shows the tour's `generated_at` as an absolute date/time (not relative — see `client/INSIGHTS.md` 2026-10-04 on `useFormatter().relativeTime`'s `ENVIRONMENT_FALLBACK` warning).
+- The sidebar label is "Onboarding Tour", added between Pull Requests and Project Context. **Unrelated** to `/onboarding` (no repo prefix), the separate add-repository page.
+
 ## `/settings/:section`
 
 - `api-keys` stores provider keys and the GitHub token. Keys are write-only from the UI: the app shows whether a key is present, never its value.

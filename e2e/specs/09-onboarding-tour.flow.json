@@ -1,0 +1,15 @@
+{
+  "name": "Onboarding Tour page is reachable from the sidebar and explains why Generate is blocked",
+  "description": "Seeded repo has no repo-intel index row, so GET /repos/:id/index-state is 'degraded' and SPEC-02 AC-4 blocks generation. Proves the WORKSPACE nav entry (AC-1), the empty/blocked state copy (AC-2/AC-4/AC-13), and that nothing is generated. Read-only; no model call. Assumes a freshly seeded stack — run via ../scripts/e2e.sh.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "shell and repo context settle" },
+    { "cmd": ["find", "role", "link", "click", "--name", "Onboarding Tour"], "label": "click the WORKSPACE nav entry" },
+    { "cmd": ["wait", "--url", "/onboarding"], "label": "on /repos/:repoId/onboarding" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "tour + index-state settle" },
+    { "cmd": ["wait", "--text", "Indexing hasn't finished"], "label": "blocked explanation shown (AC-4)" },
+    { "cmd": ["wait", "--text", "Generate onboarding tour"], "label": "generate CTA present (disabled)" },
+    { "cmd": ["wait", "--text", "how to run locally"], "label": "corrected 5-section description (AC-13)" }
+  ]
+}

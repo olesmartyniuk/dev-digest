@@ -39,6 +39,8 @@ Each `NN-name.flow.json` in this folder is one browser flow. Files run in lexica
 | `05-pr-diff` | PR → files changed tab → seeded file renders in the diff viewer |
 | `06-onboarding` | `/onboarding` renders the add-repository form, no submit |
 | `07-settings` | settings sections render |
+| `08-pr-findings-column` | PR list FINDINGS column opens the findings popover without navigating away |
+| `09-onboarding-tour` | sidebar → `/repos/:repoId/onboarding`, blocked-generate explanation for a not-yet-indexed repo |
 
 Coverage is typological, not exhaustive: one flow per journey that can break, and nothing beyond that.
 
