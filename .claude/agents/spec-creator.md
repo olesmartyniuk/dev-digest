@@ -89,7 +89,7 @@ Status: draft
 Supersedes: <link, or "none">
 Design sources: <Figma frame, image/PDF path, diagram, or doc you read this run — or "none">
 
-## Проблема й користувач
+## Problem statement and user
 <the problem, and who it's for>
 
 ## Goals / Non-goals
