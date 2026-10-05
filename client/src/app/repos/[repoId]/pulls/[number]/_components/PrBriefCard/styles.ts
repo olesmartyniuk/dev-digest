@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-/** Co-located styles for PrBriefCard (the card shell; IntentBlock owns its own). */
+/** Co-located styles for PrBriefCard (the card shell; IntentSection/BriefSection own their own). */
 export const s = {
   card: {
     display: "flex",
@@ -11,17 +11,13 @@ export const s = {
     border: "1px solid var(--border)",
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
-  rerunRow: {
-    marginTop: 10,
-  } satisfies CSSProperties,
-  skipped: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "var(--text-muted)",
-  } satisfies CSSProperties,
-  stale: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "var(--warn)",
+  /** Separates the L03 Intent section from the L05 generated-brief section (BriefSection). */
+  divider: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTop: "1px solid var(--border)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
   } satisfies CSSProperties,
 } as const;

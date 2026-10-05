@@ -42,10 +42,12 @@ export default function PRDetailPage() {
     cancel,
     tab,
     traceRunId,
+    focusFile,
     diffOrder,
     setDiffOrder,
     setTab,
     setParam,
+    openFileInDiff,
     onRunDone,
     onDeleteRun,
     onRunsStarted,
@@ -105,7 +107,9 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {prId && (tab === "overview" || tab === "findings") && <PrBriefCard prId={prId} />}
+        {prId && (tab === "overview" || tab === "findings") && (
+          <PrBriefCard prId={prId} onOpenFile={openFileInDiff} />
+        )}
 
         {tab === "overview" && (
           <OverviewTab prBody={pr.body} prId={prId} repoFullName={repoFullName} headSha={pr.head_sha} />
@@ -139,6 +143,7 @@ export default function PRDetailPage() {
             onOrderChange={setDiffOrder}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            focusFile={focusFile}
           />
         )}
       </div>

@@ -2,14 +2,35 @@
   "block": {
     "intent": "Intent",
     "blast": "Blast radius",
-    "risks": "Risks",
-    "history": "PR history"
+    "risks": "Risk areas",
+    "history": "PR history",
+    "summary": "Summary",
+    "reviewFocus": "Review focus"
   },
   "noRisks": "No notable risks flagged.",
   "noHistory": "No prior PRs overlap these files.",
   "overlap": "{count} overlap",
   "unavailable": "Brief not available yet.",
   "unavailableHint": "Run a review or open the PR to compute it.",
+  "generate": {
+    "empty": "No brief generated yet.",
+    "emptyHint": "Generate a short summary, the risk areas and a review reading order from this PR's intent, blast radius, diff stats and project context.",
+    "cta": "Generate brief",
+    "regenerate": "Regenerate brief",
+    "loadFailed": "Couldn't load the PR brief.",
+    "failed": "Brief generation failed",
+    "failedHint": "{message} Any previous brief is unchanged."
+  },
+  "missing": {
+    "banner": "Generated without: {sources}. The brief may be less precise.",
+    "intent": "intent",
+    "blast": "blast radius"
+  },
+  "reviewFocus": {
+    "empty": "No review focus suggested.",
+    "open": "Open {file} in Files changed"
+  },
+  "meta": { "generatedAt": "Generated {when}" },
   "why": {
     "title": "git-why",
     "blame": "blame",

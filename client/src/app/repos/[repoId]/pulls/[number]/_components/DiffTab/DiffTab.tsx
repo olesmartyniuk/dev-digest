@@ -22,6 +22,8 @@ interface DiffTabProps {
   onOrderChange: (o: DiffOrder) => void;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** A Review focus click (D8): the file to open + scroll into view, even inside a collapsed role group. */
+  focusFile?: string | null;
 }
 
 export function DiffTab({
@@ -33,6 +35,7 @@ export function DiffTab({
   onOrderChange,
   repoFullName,
   headSha,
+  focusFile,
 }: DiffTabProps) {
   const { commenting, commentCount, showComments, toggleComments } = useDiffComments(
     prId,
@@ -40,21 +43,23 @@ export function DiffTab({
   );
   const findingsApi = useDiffFindings(prId, repoFullName, headSha);
   const { data: smart, isLoading, isError } = usePrSmartDiff(prId);
+  const focusPath = focusFile ?? null;
 
   let body: React.ReactNode;
   if (order === "original") {
-    body = <DiffViewer files={files} commenting={commenting} findings={findingsApi} />;
+    body = <DiffViewer files={files} commenting={commenting} findings={findingsApi} focusPath={focusPath} />;
   } else if (isLoading) {
     body = <Skeleton height={120} />;
   } else if (isError || !smart) {
     // Never leave the tab blank — fall back to the flat view.
-    body = <DiffViewer files={files} commenting={commenting} findings={findingsApi} />;
+    body = <DiffViewer files={files} commenting={commenting} findings={findingsApi} focusPath={focusPath} />;
   } else {
     body = (
       <SmartDiffView
         groups={resolveGroups(smart.groups, files)}
         commenting={commenting}
         findings={findingsApi}
+        focusPath={focusPath}
       />
     );
   }

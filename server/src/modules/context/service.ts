@@ -236,6 +236,65 @@ export class ContextService {
     };
   }
 
+  /** The effective (skill ∪ own) project-context paths for one agent, in prompt order. */
+  private async effectivePathsFor(agentId: string): Promise<string[]> {
+    const links = await this.container.agentsRepo.linkedSkills(agentId);
+    const enabledLinks = links.filter((l) => l.skill.enabled);
+    const skillPathsMap = await this.repo.listSkillPathsFor(enabledLinks.map((l) => l.skill.id));
+    const skillLists = enabledLinks.map((l) => skillPathsMap.get(l.skill.id) ?? []);
+    const agentPaths = await this.repo.listAgentPaths(agentId);
+    return assembleContextPaths(skillLists, agentPaths);
+  }
+
+  /** Read + cap a set of effective paths exactly like `resolveForRun`. */
+  private async readCapped(
+    effective: string[],
+    clonePath: string | null,
+    log: Pick<RunLogger, 'info'>,
+  ): Promise<ResolvedRunContext | undefined> {
+    if (effective.length === 0) return undefined;
+
+    if (!clonePath || !(await cloneDirExists(clonePath))) {
+      log.info(`project context: clone unavailable — skipped ${effective.length} document(s)`);
+      return undefined;
+    }
+
+    const roots = this.container.config.contextRoots;
+    const readPaths: string[] = [];
+    const entries: string[] = [];
+    const skipped: { path: string; reason: string }[] = [];
+    for (const path of effective) {
+      if (!isAttachablePath(path, roots)) {
+        const reason = 'not an attachable project-context path';
+        skipped.push({ path, reason });
+        log.info(`project context: skipped ${path} — ${reason}`);
+        continue;
+      }
+      const content = await readContextDoc(clonePath, path);
+      if (content === null) {
+        const reason = 'not found in the clone';
+        skipped.push({ path, reason });
+        log.info(`project context: skipped ${path} — ${reason}`);
+        continue;
+      }
+      readPaths.push(path);
+      entries.push(formatContextEntry(path, content));
+    }
+
+    const capped = capProjectContext(entries);
+    const paths = readPaths.slice(0, capped.specs.length);
+
+    if (capped.truncated) {
+      log.info(
+        `project context: truncated to the ${MAX_PROJECT_CONTEXT_CHARS}-char cap — kept ${paths.length} of ${readPaths.length} document(s)`,
+      );
+    }
+    const tokens = capped.specs.reduce((n, s) => n + this.container.tokenizer.count(s), 0);
+    log.info(`project context: ${paths.length} document(s) attached, ~${tokens} token(s)`);
+
+    return { specs: capped.specs, paths, truncated: capped.truncated, skipped };
+  }
+
   /**
    * Run-time resolution — feeds reviewer-core's `specs` slot. Independent of
    * the repo-intel toggle (same pattern as `buildSkillsDigest`). NEVER
@@ -249,54 +308,34 @@ export class ContextService {
     log: Pick<RunLogger, 'info'>;
   }): Promise<ResolvedRunContext | undefined> {
     try {
-      const links = await this.container.agentsRepo.linkedSkills(input.agentId);
-      const enabledLinks = links.filter((l) => l.skill.enabled);
-      const skillPathsMap = await this.repo.listSkillPathsFor(enabledLinks.map((l) => l.skill.id));
-      const skillLists = enabledLinks.map((l) => skillPathsMap.get(l.skill.id) ?? []);
-      const agentPaths = await this.repo.listAgentPaths(input.agentId);
-      const effective = assembleContextPaths(skillLists, agentPaths);
+      return await this.readCapped(await this.effectivePathsFor(input.agentId), input.clonePath, input.log);
+    } catch (err) {
+      input.log.info(`project context: failed — ${(err as Error).message}`);
+      return undefined;
+    }
+  }
 
-      if (effective.length === 0) return undefined;
-
-      if (!input.clonePath || !(await cloneDirExists(input.clonePath))) {
-        input.log.info(`project context: clone unavailable — skipped ${effective.length} document(s)`);
-        return undefined;
-      }
-
-      const roots = this.container.config.contextRoots;
-      const readPaths: string[] = [];
-      const entries: string[] = [];
-      const skipped: { path: string; reason: string }[] = [];
-      for (const path of effective) {
-        if (!isAttachablePath(path, roots)) {
-          const reason = 'not an attachable project-context path';
-          skipped.push({ path, reason });
-          input.log.info(`project context: skipped ${path} — ${reason}`);
-          continue;
+  /**
+   * SPEC-03 — the union (first-seen order, de-duplicated by path) of several agents' effective
+   *  project-context paths, read + capped exactly like resolveForRun. NEVER throws; undefined when nothing to read.
+   */
+  async resolveForAgents(input: {
+    agentIds: string[];
+    clonePath: string | null;
+    log: Pick<RunLogger, 'info'>;
+  }): Promise<ResolvedRunContext | undefined> {
+    try {
+      const seen = new Set<string>();
+      const union: string[] = [];
+      for (const agentId of input.agentIds) {
+        for (const path of await this.effectivePathsFor(agentId)) {
+          if (!seen.has(path)) {
+            seen.add(path);
+            union.push(path);
+          }
         }
-        const content = await readContextDoc(input.clonePath, path);
-        if (content === null) {
-          const reason = 'not found in the clone';
-          skipped.push({ path, reason });
-          input.log.info(`project context: skipped ${path} — ${reason}`);
-          continue;
-        }
-        readPaths.push(path);
-        entries.push(formatContextEntry(path, content));
       }
-
-      const capped = capProjectContext(entries);
-      const paths = readPaths.slice(0, capped.specs.length);
-
-      if (capped.truncated) {
-        input.log.info(
-          `project context: truncated to the ${MAX_PROJECT_CONTEXT_CHARS}-char cap — kept ${paths.length} of ${readPaths.length} document(s)`,
-        );
-      }
-      const tokens = capped.specs.reduce((n, s) => n + this.container.tokenizer.count(s), 0);
-      input.log.info(`project context: ${paths.length} document(s) attached, ~${tokens} token(s)`);
-
-      return { specs: capped.specs, paths, truncated: capped.truncated, skipped };
+      return await this.readCapped(union, input.clonePath, input.log);
     } catch (err) {
       input.log.info(`project context: failed — ${(err as Error).message}`);
       return undefined;

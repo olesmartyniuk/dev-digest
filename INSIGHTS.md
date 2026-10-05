@@ -27,6 +27,8 @@ belongs here.
 
 - **2026-09-16** — The `.cursor/skills/ → ../.claude/skills` symlink that the skills README documents does not exist in the repo, so skills resolve in Claude Code only; a Cursor user who trusts that line gets no skills and no error to explain why. Evidence: `.claude/skills/README.md:3`.
 
+- **2026-10-05** — On this Windows checkout every tracked file under `server/src/vendor/shared/` and `client/src/vendor/shared/` is CRLF, but a tool that writes a brand-new file (rather than editing an existing one) emits plain LF, so a freshly created contract file that is byte-for-byte identical in *content* to its sibling copy still fails a line-ending-sensitive `diff`/`git diff --no-index` check between the two vendored copies. The plan's own "both copies byte-identical" verification step (root `CLAUDE.md`'s "edit both vendored copies" rule) only holds if new files are normalized to CRLF (e.g. `sed -i 's/$/\r/'` on a pure-LF file) before that diff is run — editing an *existing* file with `Edit` preserves its original CRLF automatically and needs no such fix. Evidence: `server/src/vendor/shared/contracts/pr-brief.ts`, `client/src/vendor/shared/contracts/pr-brief.ts`.
+
 ## Codebase Patterns
 
 - **2026-09-16** — `reviewer-core`'s raw source is imported by the API at runtime, so its `node_modules` must be installed separately or the API crashes on boot even though nothing references the package directly in `server/package.json`. Evidence: `scripts/dev.sh:78-80`.

@@ -9,4 +9,5 @@ export * from "./repo-intel";
 export * from "./intent";
 export * from "./smart-diff";
 export * from "./blast";
+export * from "./brief";
 export * from "./context";

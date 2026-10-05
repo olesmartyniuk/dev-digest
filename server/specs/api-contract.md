@@ -73,6 +73,15 @@ Files are grouped by role in `core, tests, wiring, docs, boilerplate` order; emp
 
 `degraded=true` with a `degraded_reason` when the index is off, partial, or missing (the ripgrep fallback always reports `no_data`, even with callers). `downstream` lists only symbols with ≥1 caller. Endpoints and crons are attributed only on the non-degraded path. 404 when the PR is unknown. A broken index yields `degraded_reason='index_failed'`, never a 500.
 
+## PR brief
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/pulls/:id/brief` | `PrBriefResponse` — `brief: null` when never generated; served from `pr_brief` regardless of head-SHA drift (AC-9), never calls the LLM |
+| POST | `/pulls/:id/brief` | `PrBriefResponse` — always a fresh generation (AC-2, AC-10), exactly one `risk_brief` feature-model call; rate-limited 6/min; `502 external_service_error` on a model failure, timeout, or schema failure, leaving the previously stored row untouched (AC-12); last write wins (no concurrency guard) |
+
+The request sent to the model is built only from already-computed facts — the PR's stored intent (when present), the blast-radius summary and caller file list (when present, even when degraded), the diff's file list (path + additions/deletions + Smart Diff role, never `patch`), the PR description, and the resolved project-context documents for the agent(s) that have reviewed this PR (or every enabled agent in the workspace, when none has). The PR title is never sent. Every file path the model names in `risks[].file_refs` or `review_focus[].file` is validated server-side against the PR's diff paths and its blast-radius caller files (path separators and a leading `./`/`/` are normalised before comparing); an entry that fails is dropped on its own — the rest of the brief, and the summary, are still cached and returned (AC-8/AC-8a). `risks` is sorted severity-first (`high`, then `medium`, then `low`), with ties kept in the model's own order (AC-6a); `review_focus` keeps the model's order unchanged, since that order IS the reading order (AC-7). `missing_sources` (`'intent' | 'blast'`) records which inputs were unavailable or degraded at generation time, so the client's single banner reflects what the cached brief was actually built from. The `risk_brief` feature model defaults to `openai`/`gpt-4.1`, overridable per workspace via Settings → Feature Models (same resolution as every other feature model). 404 when the PR is unknown.
+
 ## Agents
 
 | Method | Path | Contract |

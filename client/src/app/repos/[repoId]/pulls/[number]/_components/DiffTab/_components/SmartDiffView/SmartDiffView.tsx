@@ -11,10 +11,12 @@ export function SmartDiffView({
   groups,
   commenting,
   findings,
+  focusPath,
 }: {
   groups: ResolvedGroup[];
   commenting?: DiffCommentApi;
   findings: DiffFindingApi;
+  focusPath?: string | null;
 }) {
   const t = useTranslations("prReview");
   const byPath = React.useMemo(() => findingsByPath(findings.findings), [findings.findings]);
@@ -32,6 +34,7 @@ export function SmartDiffView({
           commenting={commenting}
           findings={findings}
           byPath={byPath}
+          focusPath={focusPath}
         />
       ))}
     </div>

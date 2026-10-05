@@ -1,16 +1,16 @@
 /**
- * PrBriefCard — the L03 intent card on the PR page.
+ * PrBriefCard — the L03 intent card + the L05 generated brief, on the PR page.
  *
  * Fetch is mocked at the boundary (the same pattern FindingsCell.test.tsx and
  * AgentCard.test.tsx use in this codebase): a QueryClient + NextIntlClientProvider
- * wrap the component, and `usePrIntent`/`useClassifyIntent` hit the real hooks,
- * which hit the real (mocked) `fetch`.
+ * wrap the component, and the real hooks hit the real (mocked) `fetch`, routed
+ * by URL suffix (`/intent` vs `/brief`).
  */
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { PrIntentResponse, PrIntentView } from "@devdigest/shared";
+import type { PrBriefResponse, PrIntentResponse, PrIntentView, PrBriefView } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/brief.json";
 import { PrBriefCard } from "./PrBriefCard";
 
@@ -45,30 +45,67 @@ function intentView(over: Partial<PrIntentView> = {}): PrIntentView {
   };
 }
 
-let fetchMock: ReturnType<typeof vi.fn>;
-let getResponse: PrIntentResponse;
-let postResponse: PrIntentResponse;
+function briefView(over: Partial<PrBriefView> = {}): PrBriefView {
+  return {
+    pr_id: "pr1",
+    head_sha: "deadbeef1234567",
+    missing_sources: [],
+    summary: "Adds rate limiting to the public API to prevent abuse.",
+    risks: [
+      {
+        kind: "security",
+        title: "Hardcoded secret key",
+        explanation: "A live key is committed in plaintext.",
+        severity: "high",
+        file_refs: ["src/a.ts"],
+      },
+    ],
+    review_focus: [{ file: "src/a.ts", line: 12, reason: "Start here — the hardcoded secret." }],
+    provider: "openai",
+    model: "gpt-4.1",
+    tokens_in: 900,
+    tokens_out: 120,
+    cost_usd: 0.0009,
+    generated_at: "2026-09-27T00:00:00.000Z",
+    ...over,
+  };
+}
 
-function jsonResponse(body: unknown): Response {
-  return { ok: true, status: 200, json: () => Promise.resolve(body) } as Response;
+let fetchMock: ReturnType<typeof vi.fn>;
+let intentGetResponse: PrIntentResponse;
+let intentPostResponse: PrIntentResponse;
+let briefGetResponse: PrBriefResponse;
+let briefPostResponse: unknown;
+let briefPostStatus: number;
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return { ok: status < 400, status, json: () => Promise.resolve(body) } as Response;
 }
 
 beforeEach(() => {
-  getResponse = { intent: null, skipped: null };
-  postResponse = { intent: intentView(), skipped: null };
+  intentGetResponse = { intent: null, skipped: null };
+  intentPostResponse = { intent: intentView(), skipped: null };
+  briefGetResponse = { brief: null };
+  briefPostResponse = { brief: briefView() };
+  briefPostStatus = 200;
+
   fetchMock = vi.fn((url: string, init?: RequestInit) => {
-    if (init?.method === "POST") return Promise.resolve(jsonResponse(postResponse));
-    return Promise.resolve(jsonResponse(getResponse));
+    if (url.endsWith("/brief")) {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse(briefPostResponse, briefPostStatus));
+      return Promise.resolve(jsonResponse(briefGetResponse));
+    }
+    if (init?.method === "POST") return Promise.resolve(jsonResponse(intentPostResponse));
+    return Promise.resolve(jsonResponse(intentGetResponse));
   });
   vi.stubGlobal("fetch", fetchMock);
 });
 
-function renderCard() {
+function renderCard(onOpenFile: (path: string) => void = vi.fn()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
-        <PrBriefCard prId="pr1" />
+        <PrBriefCard prId="pr1" onOpenFile={onOpenFile} />
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
@@ -90,7 +127,7 @@ describe("PrBriefCard", () => {
   });
 
   it("shows the skipped reason next to an already-classified intent", async () => {
-    getResponse = {
+    intentGetResponse = {
       intent: intentView({ confidence: "medium" }),
       skipped: "no openrouter API key configured",
     };
@@ -102,7 +139,7 @@ describe("PrBriefCard", () => {
   });
 
   it("shows the stale warning when the PR head has moved since classification", async () => {
-    getResponse = { intent: intentView({ stale: true }), skipped: null };
+    intentGetResponse = { intent: intentView({ stale: true }), skipped: null };
     renderCard();
 
     expect(
@@ -110,5 +147,60 @@ describe("PrBriefCard", () => {
         "The PR has new commits since this was classified. Re-run to refresh.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("no brief yet → Generate brief → shows the summary, Risk areas and Review focus", async () => {
+    renderCard();
+
+    expect(await screen.findByText("No brief generated yet.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate brief" }));
+
+    expect(await screen.findByText("Adds rate limiting to the public API to prevent abuse.")).toBeInTheDocument();
+    expect(screen.getByText("Risk areas")).toBeInTheDocument();
+    expect(screen.getByText("Hardcoded secret key")).toBeInTheDocument();
+    expect(screen.getByText("src/a.ts")).toBeInTheDocument();
+    expect(screen.getByText("Review focus")).toBeInTheDocument();
+    expect(screen.getByText("src/a.ts:12")).toBeInTheDocument();
+  });
+
+  it("a brief missing both sources shows one banner naming them", async () => {
+    briefGetResponse = { brief: briefView({ missing_sources: ["intent", "blast"] }) };
+    renderCard();
+
+    const banner = await screen.findByRole("status");
+    expect(banner).toHaveTextContent("Generated without: intent, blast radius. The brief may be less precise.");
+  });
+
+  it("a brief with no risks shows the empty Risk-areas state", async () => {
+    briefGetResponse = { brief: briefView({ risks: [] }) };
+    renderCard();
+
+    expect(await screen.findByText("No notable risks flagged.")).toBeInTheDocument();
+  });
+
+  it("clicking a review-focus entry calls onOpenFile with its path", async () => {
+    briefGetResponse = { brief: briefView() };
+    const onOpenFile = vi.fn();
+    renderCard(onOpenFile);
+
+    const button = await screen.findByRole("button", { name: "Open src/a.ts in Files changed" });
+    fireEvent.click(button);
+    expect(onOpenFile).toHaveBeenCalledWith("src/a.ts");
+  });
+
+  it("a failed regenerate keeps the cached brief visible and shows the failure state", async () => {
+    briefGetResponse = { brief: briefView() };
+    briefPostResponse = { error: { code: "external_service_error", message: "boom" } };
+    briefPostStatus = 502;
+    renderCard();
+
+    expect(await screen.findByText("Adds rate limiting to the public API to prevent abuse.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate brief" }));
+
+    expect(await screen.findByText("Brief generation failed")).toBeInTheDocument();
+    // The cached summary is still visible underneath the error state.
+    expect(screen.getByText("Adds rate limiting to the public API to prevent abuse.")).toBeInTheDocument();
   });
 });

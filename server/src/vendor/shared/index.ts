@@ -5,6 +5,7 @@
  *  - contracts/findings   Review, Finding, Severity, Verdict, FindingAction, trifecta
  *  - contracts/brief      Intent, BlastRadius, Risks, PrHistory, SmartDiff, PrBrief
  *  - contracts/blast      BlastRadiusResponse, BlastDegradedReason (L04)
+ *  - contracts/pr-brief   PrBriefView, PrBriefResponse, BriefMissingSource (L05)
  *  - contracts/knowledge  Conformance, Onboarding, EvalRun/EvalCase, MemoryItem,
  *                         Skill/CommunitySkill, ConventionCandidate, Agent
  *  - contracts/onboarding OnboardingTour, OnboardingSectionKind, OnboardingIndexNotReady
@@ -22,6 +23,7 @@ export * from './contracts/review-api.js';
 export * from './contracts/brief.js';
 export * from './contracts/intent.js';
 export * from './contracts/blast.js';
+export * from './contracts/pr-brief.js';
 export * from './contracts/knowledge.js';
 export * from './contracts/conventions.js';
 export * from './contracts/trace.js';

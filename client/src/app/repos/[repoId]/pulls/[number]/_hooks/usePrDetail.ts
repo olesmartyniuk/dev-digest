@@ -58,16 +58,30 @@ export function usePrDetail(repoId: string, number: string) {
     if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
   }, [qc, prId]);
 
-  const setParam = React.useCallback(
-    (key: string, val: string | null) => {
+  /** Write several URL params in one `router.replace` (one history entry, not one per key). */
+  const writeParams = React.useCallback(
+    (patch: Record<string, string | null>) => {
       const sp = new URLSearchParams(search.toString());
-      if (val == null) sp.delete(key);
-      else sp.set(key, val);
+      for (const [k, v] of Object.entries(patch)) {
+        if (v == null) sp.delete(k);
+        else sp.set(k, v);
+      }
       router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
     },
     [search, router, repoId, number],
   );
-  const setTab = React.useCallback((t: string) => setParam("tab", t), [setParam]);
+  const setParam = React.useCallback(
+    (key: string, val: string | null) => writeParams({ [key]: val }),
+    [writeParams],
+  );
+  // Clears a stale `?file=` focus when switching tabs manually, so it doesn't
+  // re-scroll the Files-changed tab later for an unrelated visit.
+  const setTab = React.useCallback((t: string) => writeParams({ tab: t, file: null }), [writeParams]);
+  /** A Review focus click (D8, AC-11): switch to Files changed and focus one file, in one replace. */
+  const openFileInDiff = React.useCallback(
+    (path: string) => writeParams({ tab: "diff", file: path }),
+    [writeParams],
+  );
 
   // The "Files changed" tab's file order lives in the URL too, so a shared
   // link keeps showing the same view. Absent means Smart (the default),
@@ -128,10 +142,12 @@ export function usePrDetail(repoId: string, number: string) {
     cancel,
     tab: search.get("tab") ?? "overview",
     traceRunId: search.get("trace"),
+    focusFile: search.get("file"),
     diffOrder,
     setDiffOrder,
     setTab,
     setParam,
+    openFileInDiff,
     onRunDone,
     onDeleteRun,
     onRunsStarted: invalidateActiveRuns,

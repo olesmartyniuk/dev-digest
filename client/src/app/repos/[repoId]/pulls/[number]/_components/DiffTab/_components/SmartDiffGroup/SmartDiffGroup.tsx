@@ -19,15 +19,19 @@ export function SmartDiffGroup({
   commenting,
   findings,
   byPath,
+  focusPath,
 }: {
   role: SmartDiffRole;
   files: PrFile[];
   commenting?: DiffCommentApi;
   findings: DiffFindingApi;
   byPath: Map<string, FindingRecord[]>;
+  focusPath?: string | null;
 }) {
   const t = useTranslations("prReview");
-  const [open, setOpen] = React.useState(!DEFAULT_COLLAPSED_ROLES.has(role));
+  const [open, setOpen] = React.useState(
+    !DEFAULT_COLLAPSED_ROLES.has(role) || (focusPath != null && files.some((f) => f.path === focusPath)),
+  );
   const { withFindings, worst } = React.useMemo(
     () => groupFindingStats(files, byPath),
     [files, byPath],
@@ -49,7 +53,13 @@ export function SmartDiffGroup({
       {open && (
         <div style={s.files}>
           {files.map((f) => (
-            <FileCard key={f.path} file={f} commenting={commenting} findings={findings} />
+            <FileCard
+              key={f.path}
+              file={f}
+              commenting={commenting}
+              findings={findings}
+              focused={f.path === focusPath}
+            />
           ))}
         </div>
       )}

@@ -40,6 +40,9 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - The trace drawer opens via `?trace=<runId>` and renders the persisted trace: prompt assembly, tool calls, stats, raw output, full log.
 - Cancelling a run is available while it runs and works even for a run orphaned by a server restart.
 - The Files changed tab defaults to Smart order — role groups (core, tests, wiring, docs, boilerplate) from `GET /pulls/:id/smart-diff`, with docs and boilerplate collapsed by default. `?order=original` shows GitHub order instead. Findings are matched to files client-side from `/pulls/:id/reviews`, on `file` + `start_line` (RIGHT side) — the server never does this association.
+- **PR brief (SPEC-03 / L05)**: the one brief card (shown on both the Overview and Findings tabs) holds the Intent section first, then a divider, then the generated brief section (`GET /pulls/:id/brief`) — summary, Risk areas, Review focus — below it. With no brief generated yet the generated-brief section shows a "Generate brief" empty state; `POST /pulls/:id/brief` always forces a fresh generation (`POST` is the only way to refresh it — there is no stale/SHA-mismatch indicator). When the stored intent or the blast-radius data is unavailable or degraded, a single banner at the top of the card names every missing source together, rather than one message per block.
+- Risk areas are pre-sorted server-side by severity (high, then medium, then low); Review focus's array order IS the reading order (first entry read first) — neither is re-sorted client-side.
+- Clicking a Review focus entry writes `?tab=diff&file=<path>` in one navigation, which switches to the Files changed tab, opens that file (forcing open its Smart Diff role group even when that group is collapsed by default, e.g. docs/boilerplate), and scrolls it into view. There is no line-level scroll or highlight (deferred).
 
 ## `/agents` and `/agents/:id`
 
