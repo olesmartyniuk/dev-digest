@@ -41,6 +41,10 @@ belongs here.
 
 - **2026-09-16** — A DB-backed server test not named `*.it.test.ts` runs in the unit lane and fails there without Docker; the split is by filename, not by content. Evidence: `TESTING.md:79`.
 
+- **2026-10-04** — Claude Code's own session transcripts (`~/.claude/projects/<slug>/<uuid>.jsonl` and its `<uuid>/subagents/agent-*.jsonl` siblings) log one `usage` reading per *content block* within an assistant turn, not once per turn — every block (the thinking block, then each tool_use) gets its own JSONL line, and all lines sharing the same `message.id` repeat the identical usage snapshot for that whole turn. Summing `usage` fields per-line overcounts tokens by roughly the block count per turn; correct accounting dedupes by `message.id` before summing. Evidence: `.claude/skills/workflow-retro/scripts/extract_workflow_metrics.mjs` (`seenMessageIds` guard).
+
+- **2026-10-04** — On Windows, the same project directory is logged under two differently-cased slug folders in `~/.claude/projects/` (confirmed for this repo: both a `C--Users-...` and a `c--Users-...` slug existed side by side), because the drive-letter case in the reported cwd differs between process launches — this session's own environment block toggled between `c:\...` and `C:\...` casing across turns. Any script that locates a session's transcript must search `~/.claude/projects/*/` for the `<uuid>.jsonl` rather than construct the slug from the current cwd string, or it can silently miss the session. Evidence: `.claude/skills/workflow-retro/scripts/extract_workflow_metrics.mjs` (`findSession`).
+
 ## Recurring Errors & Fixes
 
 ## Session Notes
