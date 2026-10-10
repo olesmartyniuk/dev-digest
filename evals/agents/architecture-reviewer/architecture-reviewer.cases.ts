@@ -8,7 +8,7 @@ const REVIEW_PROMPT = `Audit this diff against DevDigest's documented structural
 ${fx("checkout-service.diff")}`;
 
 // A second real diff whose violations map onto DevDigest-SPECIFIC rule names
-// (`reviewer-core-zero-io`, `reviewer-core-ground-findings-gate`) that a competent model will
+// (the `reviewer-core-purity` catalogue rule) that a competent model will
 // describe in prose but will not spontaneously name unless the agent forces a citation. This is
 // the discriminating case for the strict-vs-lite A/B: both variants should FIND both problems,
 // but only the strict variant (which keeps the "cite the exact documented rule per finding" hard
@@ -38,10 +38,10 @@ export const cases: AgentCase[] = [
     practices: [
       "flags the domain file (checkout.ts) importing a type from 'fastify' as a violation of the inward-only dependency rule between Domain and Presentation layers",
       "flags the `new PgCheckoutRepository()` call inside service.ts as a violation of DI discipline (concrete adapters/repositories must be constructed only in the composition root / container)",
-      "names the specific documented rule identifier for EVERY finding (e.g. `inward-only-dependencies`, `di-discipline`) rather than describing the problem only in prose",
+      "names a rule identifier from the agent's own rule catalogue (e.g. `no-domain-outward`, `no-service-imports-adapters-directly`, `ports-bypass`) for EVERY finding rather than describing the problem only in prose",
       "assigns a severity (critical/high/medium/low/info) to each finding",
       "quotes the offending line verbatim as evidence for each finding, not a paraphrase",
-      "ends with an explicit PASS/FAIL gate verdict based on whether any critical or high findings exist",
+      "ends with a Status line consistent with its findings: `VIOLATIONS` because findings exist (not CLEAN)",
     ],
     threshold: 1.0,
     maxTurns: 25,
@@ -64,10 +64,9 @@ export const cases: AgentCase[] = [
     practices: [
       "flags the `import { readFileSync } from 'node:fs'` added to reviewer-core/src/pipeline/run.ts as a violation (reviewer-core must do no I/O except the injected LLMProvider)",
       "flags that runPipeline now returns `deduped` directly, skipping the mandatory `groundFindings()` gate before emitting findings",
-      "names the exact documented rule identifier `reviewer-core-zero-io` for the fs-import finding rather than only describing it in prose",
-      "names the exact documented rule identifier `reviewer-core-ground-findings-gate` for the skipped-gate finding rather than only describing it in prose",
+      "names the catalogue rule identifier `reviewer-core-purity` for the fs-import finding rather than only describing it in prose",
       "quotes the offending line verbatim as evidence for each finding, not a paraphrase",
-      "ends with an explicit PASS/FAIL gate verdict based on whether any critical or high findings exist",
+      "ends with a Status line consistent with its findings: `VIOLATIONS` because findings exist (not CLEAN)",
     ],
     threshold: 1.0,
     maxTurns: 25,
@@ -79,7 +78,7 @@ export const cases: AgentCase[] = [
     practices: [
       "reports no violations for the benign rename (or records only `info`-level, non-blocking observations) — it does not invent a critical/high/medium finding",
       "does not fabricate a documented-rule violation where the diff violates none of the checked rules",
-      "the final gate verdict is PASS",
+      "the final Status is `CLEAN`, or `PARTIAL` only because `pnpm arch` could not be run — never `VIOLATIONS`",
     ],
     threshold: 1.0,
     maxTurns: 25,

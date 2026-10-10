@@ -71,8 +71,8 @@ function printTest(agg: NodeAggregate, times: number): void {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   // Cap runs at 2 to keep token spend bounded — LLM sessions are expensive, and 2 runs is enough
-  // to catch a blatantly flaky case. Bump MAX_TIMES if you deliberately want a fuller stability run.
-  const MAX_TIMES = 2;
+  // to catch a blatantly flaky case. Set EVAL_MAX_TIMES=5 (or edit this) for a fuller stability run.
+  const MAX_TIMES = Number(process.env.EVAL_MAX_TIMES) || 2;
   let times = MAX_TIMES;
   let label: string | undefined;
   const vitestArgs: string[] = [];
@@ -83,7 +83,7 @@ async function main(): Promise<void> {
     else vitestArgs.push(a);
   }
   if (vitestArgs.length === 0 || !Number.isFinite(times) || times < 1) {
-    console.error("usage: pnpm eval:repeat <vitest pattern> [-n times<=2] [-t testNamePattern] [--label name]");
+    console.error("usage: pnpm eval:repeat <vitest pattern> [-n times<=EVAL_MAX_TIMES (default 2)] [-t testNamePattern] [--label name]");
     process.exit(1);
   }
   if (times > MAX_TIMES) {

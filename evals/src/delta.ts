@@ -32,6 +32,17 @@ function load(label: string): RepeatFile {
   return JSON.parse(readFileSync(file, "utf8"));
 }
 
+/**
+ * Test key independent of file path and the `agent:<name>` / `skill:<name>` describe, so two
+ * differently-named artifacts running the SAME cases (e.g. architecture-reviewer vs -lite) line up.
+ */
+const testKey = (id: string): string => {
+  const parts = id.split(" > ");
+  return parts.length > 2 ? parts.slice(2).join(" > ") : id;
+};
+const byTestKey = (tests: Record<string, NodeAggregate>): Record<string, NodeAggregate> =>
+  Object.fromEntries(Object.entries(tests).map(([id, agg]) => [testKey(id), agg]));
+
 const rate = (s?: Series) => (s ? Math.round(s.rate * 100) : null);
 const fmtRate = (p: number | null) => (p === null ? "  —" : `${p}`.padStart(3));
 
@@ -63,10 +74,12 @@ function main(): void {
   console.log(`A = ${labelA}  sha ${a.git_sha}${a.dirty ? "-dirty" : ""}  (${a.times} runs)`);
   console.log(`B = ${labelB}  sha ${b.git_sha}${b.dirty ? "-dirty" : ""}  (${b.times} runs)`);
 
-  const nodeids = [...new Set([...Object.keys(a.tests), ...Object.keys(b.tests)])].sort();
+  const testsA = byTestKey(a.tests);
+  const testsB = byTestKey(b.tests);
+  const nodeids = [...new Set([...Object.keys(testsA), ...Object.keys(testsB)])].sort();
   for (const id of nodeids) {
-    const ta = a.tests[id];
-    const tb = b.tests[id];
+    const ta = testsA[id];
+    const tb = testsB[id];
     const shortId = id.split(" > ").slice(-1)[0];
     rateRow("\n  ", shortId, ta?.pass, tb?.pass);
 
