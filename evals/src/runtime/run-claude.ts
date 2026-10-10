@@ -111,7 +111,7 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
             }
             if (block.name === "Read") {
               const fp = input.file_path ?? input.path;
-              if (fp) reads.push(fp);
+              if (fp) reads.push(String(fp).replace(/\\/g, "/")); // posix separators so `includes("a/b.md")` works on Windows
             }
             if (block.name === "Skill") {
               const s = input.skill ?? input.command;

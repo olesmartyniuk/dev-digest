@@ -132,13 +132,20 @@ export function runWorkflowCases(cases: WorkflowCase[]): void {
           record(c.name, { result });
         }
       } else if (c.kind === "activation") {
-        const result = await workflowTask(c.prompt, { maxTurns: c.maxTurns });
+        // Positive: stop the moment the skill engages, so the run ends cleanly instead of burning
+        // the turn budget (a hit cap surfaces as isError). Negative: can't stop early — the model
+        // is free to explore — so running out of turns is not a failure; only activation matters.
+        const result = await workflowTask(c.prompt, {
+          maxTurns: c.maxTurns,
+          stopWhen: c.shouldActivate ? (p) => activated({ ...p } as Result, c.skill) : undefined,
+        });
         logTrace(c.name, result);
         try {
           expect(
             activated(result, c.skill),
             `skills: ${result.skillsInvoked.join(", ")} | reads: ${result.filesRead.join(", ")}`,
           ).toBe(c.shouldActivate);
+          if (c.shouldActivate) expect(result.isError, "positive activation must end without error").toBe(false);
         } finally {
           record(c.name, { result });
         }
