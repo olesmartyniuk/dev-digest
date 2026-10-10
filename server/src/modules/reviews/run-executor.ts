@@ -205,6 +205,16 @@ export class ReviewRunExecutor {
       // none so the prompt stays byte-identical to the no-skills baseline.
       const skillsDigest = await this.buildSkillsDigest(agent.id, runLog);
 
+      // L05 — project context (SPEC-01): this agent's effective attached
+      // documents (its own + inherited from linked, enabled skills), read
+      // from the clone and capped. Independent of the repo-intel toggle,
+      // same as skills above — never throws; undefined omits the section.
+      const projectContext = await this.container.contextService.resolveForRun({
+        agentId: agent.id,
+        clonePath: repo.clonePath,
+        log: runLog,
+      });
+
       const task = taskLine(pull) + rankNote;
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
@@ -226,6 +236,10 @@ export class ReviewRunExecutor {
         ...(repoMap ? { repoMap } : {}),
         // L02 — this agent's linked, enabled skill bodies, in order.
         ...(skillsDigest ? { skills: skillsDigest } : {}),
+        // L05 — project context (SPEC-01): the agent's effective attached
+        // documents, pre-rendered as `Source: <path>` entries. Omitted when
+        // there is none (AC-11); assemblePrompt applies the size cap itself.
+        ...(projectContext ? { specs: projectContext.specs } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -310,7 +324,9 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        // L05 — the project-context paths that actually survived the cap and
+        // were read into the prompt (AC-13), not merely attached.
+        specs_read: projectContext?.paths ?? [],
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

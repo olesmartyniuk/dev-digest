@@ -15,6 +15,10 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  capProjectContext,
+  renderProjectContextBlock,
+  MAX_PROJECT_CONTEXT_CHARS,
+  PROJECT_CONTEXT_RULE,
   type PromptParts,
   type AssembledPrompt,
 } from './prompt.js';

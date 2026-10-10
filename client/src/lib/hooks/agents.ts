@@ -105,6 +105,10 @@ export function useSetAgentSkills(agentId: string) {
   return useMutation({
     mutationFn: (skillIds: string[]) =>
       api.post<AgentSkillLink[]>(`/agents/${agentId}/skills`, { skill_ids: skillIds }),
-    onSuccess: (data) => qc.setQueryData(["agent-skills", agentId], data),
+    onSuccess: (data) => {
+      qc.setQueryData(["agent-skills", agentId], data);
+      // L05 — linked skills change this agent's INHERITED project context.
+      qc.invalidateQueries({ queryKey: ["agent-context", agentId] });
+    },
   });
 }

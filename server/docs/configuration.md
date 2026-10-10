@@ -14,6 +14,7 @@ Everything the API reads at startup, and where secrets actually live.
 | `GITHUB_TOKEN` | — | optional; PAT with repo scope (`GITHUB_PAT` accepted as a fallback) |
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off means **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` degrades every consumer to ripgrep-only |
+| `DEVDIGEST_CONTEXT_ROOTS` | `specs,docs,insights` | comma-separated directory names whose `.md` files form a repo's Project Context (any depth) |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` means silent logs and no global rate limit |

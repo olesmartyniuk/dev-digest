@@ -1,17 +1,49 @@
 {
   "title": "Onboarding Tour",
+  "nav": "Onboarding Tour",
   "sections": "Sections",
   "sectionCount": "{count} sections",
   "regenerate": "Regenerate",
   "regenerating": "Regenerating…",
   "unknownError": "Unknown error",
+  "lastRefreshed": "Last refreshed {when}",
+  "sectionTitles": {
+    "architecture": "Architecture",
+    "critical_paths": "Critical paths",
+    "how_to_run": "How to run locally",
+    "reading_path": "Reading path",
+    "first_tasks": "First tasks"
+  },
   "generate": {
     "title": "Generate onboarding tour",
-    "body": "DevDigest indexes the repo and specs, then writes a 5-section guided tour: overview, architecture, key modules, getting started, and conventions & gotchas.",
+    "body": "DevDigest reads the repo's index and its specs/docs, then writes a 5-section guided tour: architecture, critical paths, how to run locally, a guided reading path, and first tasks.",
     "cta": "Generate onboarding tour",
     "generating": "Generating…"
   },
   "loadError": {
     "title": "Couldn’t load the onboarding tour"
+  },
+  "blocked": {
+    "title": "Indexing hasn't finished",
+    "body": "The onboarding tour is generated from the repository index, which is currently {status}. Generate becomes available once indexing completes."
+  },
+  "limitedData": {
+    "title": "Limited data",
+    "body": "The index for this repository holds very few files, so this tour may be thin. Repo-intel indexes TypeScript/JavaScript sources only."
+  },
+  "generateError": {
+    "title": "Couldn't generate the onboarding tour"
+  },
+  "retry": "Retry",
+  "open": "Open",
+  "copy": "Copy",
+  "copied": "Copied",
+  "collapse": "Collapse",
+  "expand": "Expand",
+  "noCommands": "No run commands could be grounded in this repository's documents.",
+  "viewer": {
+    "preview": "Preview",
+    "raw": "Raw",
+    "loadError": "Couldn't load this file"
   }
 }

@@ -40,6 +40,9 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - The trace drawer opens via `?trace=<runId>` and renders the persisted trace: prompt assembly, tool calls, stats, raw output, full log.
 - Cancelling a run is available while it runs and works even for a run orphaned by a server restart.
 - The Files changed tab defaults to Smart order — role groups (core, tests, wiring, docs, boilerplate) from `GET /pulls/:id/smart-diff`, with docs and boilerplate collapsed by default. `?order=original` shows GitHub order instead. Findings are matched to files client-side from `/pulls/:id/reviews`, on `file` + `start_line` (RIGHT side) — the server never does this association.
+- **PR brief (SPEC-03 / L05)**: the one brief card (shown on both the Overview and Findings tabs) holds the Intent section first, then a divider, then the generated brief section (`GET /pulls/:id/brief`) — summary, Risk areas, Review focus — below it. With no brief generated yet the generated-brief section shows a "Generate brief" empty state; `POST /pulls/:id/brief` always forces a fresh generation (`POST` is the only way to refresh it — there is no stale/SHA-mismatch indicator). When the stored intent or the blast-radius data is unavailable or degraded, a single banner at the top of the card names every missing source together, rather than one message per block.
+- Risk areas are pre-sorted server-side by severity (high, then medium, then low); Review focus's array order IS the reading order (first entry read first) — neither is re-sorted client-side.
+- Clicking a Review focus entry writes `?tab=diff&file=<path>` in one navigation, which switches to the Files changed tab, opens that file (forcing open its Smart Diff role group even when that group is collapsed by default, e.g. docs/boilerplate), and scrolls it into view. There is no line-level scroll or highlight (deferred).
 
 ## `/agents` and `/agents/:id`
 
@@ -47,6 +50,8 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - The editor configures name, provider, model, system prompt, review strategy, the per-agent repo-intel toggle, and the severity gate.
 - Model lists come from `/agents/:id/models` or `/providers/:id/models` and degrade to empty when no key is configured — the editor must stay usable.
 - Saving creates a new agent version; history is available.
+- `?tab=context` (SPEC-01 / L05): attach/reorder this agent's own project-context documents (`GET`/`PUT /agents/:id/context`), from the **active repo**'s listing. Shows every linked skill's inherited documents first (including disabled skills, dimmed), then the agent's own, in the effective (run-time) order. Linking/unlinking a skill (Skills tab) invalidates this tab's data.
+- The Skills Lab's skill detail pane (`/skills`) has its own "Project context to use" **section** (not a tab, `GET`/`PUT /skills/:id/context`) that any agent linking that skill inherits from. It shows a live "SERIALIZES AS" preview (`GET /skills/:id/context/preview`) of the exact `## Project context` block that skill would contribute, truncation warning included.
 
 ## `/repos/:repoId/conventions` — Conventions Extractor
 
@@ -58,6 +63,26 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - Re-scanning preserves accepted and rejected rows and does not re-ask about a rule the user already judged.
 - **Create skill** opens the merged draft from `GET /repos/:id/conventions/skill-draft`. Name, description, enabled state and the whole markdown body are editable before saving via `POST /repos/:id/conventions/skill`, which can also attach the new skill to agents.
 - An unknown `repoId` renders the repo-not-found state; a repo that has not finished cloning fails the scan with that reason rather than an empty list.
+
+## `/repos/:repoId/context` — Project Context
+
+- Data: `GET /repos/:id/context` (scans on a cache miss, otherwise serves the server's in-memory cache). "Rescan" forces a fresh scan via `POST /repos/:id/context/rescan`.
+- Lists every `.md` document under the repo's configured roots (`specs/`, `docs/`, `insights/` by default), at any depth, sorted alphabetically, each with its root badge and "used by N agent(s) · M skill(s)" count.
+- Selecting a document shows it in the right pane, **preview** (rendered Markdown) by default or **edit** (raw source) via `?mode=`; edit is READ-ONLY — there is no save button, and nothing here ever writes to the clone.
+- The status line shows the document count and when the scan last ran — no chunk/index count (this is a folder scan, not a semantic index).
+- Empty states are distinct and are not errors: no clone yet (`clone_status: 'not_cloned'`), clone missing from disk (`'missing'`), and clone ready but no matching documents found.
+- An unknown `repoId` renders the repo-not-found state, not a crash.
+- Attaching a document to an agent or skill is done from their own editors (`/agents/:id?tab=context`, or the Skills Lab's skill detail pane), not from this page — this page is discovery/preview only.
+
+## `/repos/:repoId/onboarding` — Onboarding Tour
+
+- Data: `GET /repos/:id/onboarding` (the stored tour, or the empty `not_generated` state), `POST /repos/:id/onboarding/generate` (inline, one LLM call), `GET /repos/:id/index-state` (drives the blocked/ready gate), `GET /repos/:id/onboarding/file?path=` (the in-app source-file drawer).
+- Always exactly 5 sections, in a fixed order: **Architecture** (overview + one mermaid diagram), **Critical paths** (per-file reason + "Open" into the in-app viewer, never a GitHub link), **How to run locally** (extracted shell commands, each with its own Copy button, or a "no commands could be grounded" hint), **Reading path** (numbered files in the order to read them), **First tasks** (3–4 numbered starter tasks with a file/area pointer).
+- **Blocked vs limited-data, two distinct notices:** generation requires the repo's index status to be `full` — while it isn't, an inline notice explains why and a disabled Generate button is shown (no LLM call is ever attempted from the blocked state). When the tour has never been generated yet, the blocked notice renders together with the empty-state's 5-section description (`generate.body`) rather than the description being hidden until unblocked — a deliberate choice so the corrected copy is visible even while generation is unavailable (`client/INSIGHTS.md` 2026-10-05). Once a tour exists, a separate `limited_data` notice can appear alongside it when the underlying index is thin — this is a quality warning, not a blocker, and doesn't prevent viewing or regenerating.
+- A failed (re)generation shows an error with Retry **above** the still-visible previous tour — regenerating never clears an existing tour until the new one succeeds.
+- Opening a critical-path/reading-path/first-task link opens a read-only drawer (`?file=`, `?mode=preview|raw` in the URL) with the file's source — Markdown files get a preview/raw tab toggle, everything else is raw-only. No save/edit control anywhere.
+- "Last refreshed" shows the tour's `generated_at` as an absolute date/time (not relative — see `client/INSIGHTS.md` 2026-10-04 on `useFormatter().relativeTime`'s `ENVIRONMENT_FALLBACK` warning).
+- The sidebar label is "Onboarding Tour", added between Pull Requests and Project Context. **Unrelated** to `/onboarding` (no repo prefix), the separate add-repository page.
 
 ## `/settings/:section`
 

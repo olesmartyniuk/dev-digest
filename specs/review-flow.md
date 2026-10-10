@@ -18,7 +18,7 @@ Cross-package rules that any change must preserve. Each is observable and testab
 ## Prompt safety
 
 - **P1** Every review path appends the single shared `INJECTION_GUARD` to the agent's system prompt. There is no keyword scanning of untrusted text.
-- **P2** All untrusted content (diff, PR description, derived intent, repo map, callers) is delimiter-wrapped by `wrapUntrusted`; PR descriptions are truncated.
+- **P2** All untrusted content (diff, PR description, derived intent, repo map, callers, project context documents) is delimiter-wrapped by `wrapUntrusted`; PR descriptions are truncated.
 - **P3** Claims inside untrusted content that a finding is "intentional / a test fixture / not for production" never reduce severity or scope.
 
 ## Context enrichment
@@ -26,6 +26,7 @@ Cross-package rules that any change must preserve. Each is observable and testab
 - **C1** `repo-intel` is read-only at review time; no indexing happens during a request.
 - **C2** With repo-intel globally off (`REPO_INTEL_ENABLED=false`) **or** off for the agent (`repo_intel`), the *repo-intel sections* of the prompt are omitted (skills and intent are independent of repo-intel).
 - **C3** An unindexed or partially indexed repo degrades silently — the facade returns empty results and the corresponding prompt sections are omitted.
+- **C4** Project context is read from the clone's working tree at run time, independently of repo-intel. Unreadable or out-of-root documents are omitted and logged, never failing a run. The block is capped by `MAX_PROJECT_CONTEXT_CHARS`, and `specs_read` lists only documents that survived the cap.
 
 ## Intent
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * PR Brief building blocks: Intent, Blast radius, Risks, PR History,
+ * PR Brief building blocks: Intent, Blast radius, Risks, Risk brief, PR History,
  * Smart Diff. Composed into PrBrief.
  */
 
@@ -61,6 +61,21 @@ export const Risks = z.object({
 });
 export type Risks = z.infer<typeof Risks>;
 
+// ---- Risk brief (L05 / SPEC-03) ----
+export const ReviewFocusItem = z.object({
+  file: z.string(),
+  line: z.number().int(),
+  reason: z.string(),
+});
+export type ReviewFocusItem = z.infer<typeof ReviewFocusItem>;
+
+/** The LLM's output for POST /pulls/:id/brief — the extended Risks contract. All fields required (strict json_schema). */
+export const RiskBrief = Risks.extend({
+  summary: z.string(),
+  review_focus: z.array(ReviewFocusItem),
+});
+export type RiskBrief = z.infer<typeof RiskBrief>;
+
 // ---- PR History ----
 export const PrHistoryItem = z.object({
   pr_number: z.number().int(),
@@ -117,6 +132,8 @@ export const PrBrief = z.object({
   intent: Intent,
   blast: BlastRadius,
   risks: Risks,
+  summary: z.string(),
+  review_focus: z.array(ReviewFocusItem),
   history: PrHistory,
 });
 export type PrBrief = z.infer<typeof PrBrief>;

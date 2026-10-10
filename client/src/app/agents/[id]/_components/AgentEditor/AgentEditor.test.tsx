@@ -11,6 +11,12 @@ vi.mock("../../../../../lib/hooks/agents", () => ({
   useProviderModels: () => ({ data: [{ id: "gpt-4.1", provider: "openai" }] }),
 }));
 
+// The Context tab is tested on its own (ContextTab + ContextPicker); here we
+// only confirm the tab router picks it for `?tab=context`.
+vi.mock("./_components/ContextTab", () => ({
+  ContextTab: ({ agentId }: { agentId: string }) => <div>Context tab for {agentId}</div>,
+}));
+
 import { AgentEditor } from "./AgentEditor";
 
 afterEach(cleanup);
@@ -44,5 +50,10 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Configuration")).toBeInTheDocument();
     expect(screen.getByText("Save agent")).toBeInTheDocument();
+  });
+
+  it("renders the Context tab for ?tab=context (L05)", () => {
+    renderWithIntl(<AgentEditor agent={AGENT} tab="context" onTab={() => {}} />);
+    expect(screen.getByText(`Context tab for ${AGENT.id}`)).toBeInTheDocument();
   });
 });

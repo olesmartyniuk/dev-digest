@@ -188,4 +188,18 @@ describe("DiffTab", () => {
     expect(screen.queryByText(/have findings/)).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /finding\(s\) in this file/ })).not.toBeInTheDocument();
   });
+
+  it("a Review focus click (focusFile) opens its collapsed group and scrolls the file into view", async () => {
+    const scrollIntoViewMock = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+    renderTab({ focusFile: "README.md" });
+
+    // The Docs group (collapsed by default) is forced open because it contains the focused file.
+    expect(await screen.findByText("added doc line")).toBeInTheDocument();
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+
+    Element.prototype.scrollIntoView = original;
+  });
 });

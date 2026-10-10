@@ -5,8 +5,10 @@
  *  - contracts/findings   Review, Finding, Severity, Verdict, FindingAction, trifecta
  *  - contracts/brief      Intent, BlastRadius, Risks, PrHistory, SmartDiff, PrBrief
  *  - contracts/blast      BlastRadiusResponse, BlastDegradedReason (L04)
+ *  - contracts/pr-brief   PrBriefView, PrBriefResponse, BriefMissingSource (L05)
  *  - contracts/knowledge  Conformance, Onboarding, EvalRun/EvalCase, MemoryItem,
  *                         Skill/CommunitySkill, ConventionCandidate, Agent
+ *  - contracts/onboarding OnboardingTour, OnboardingSectionKind, OnboardingIndexNotReady
  *  - contracts/conventions Convention, ConventionExtractResult, ConventionSkillDraft
  *  - contracts/trace      RunTrace, RunEvent, RunLogLine (single-document trace)
  *  - contracts/platform   Settings, ConnTestResult, Repo, PrMeta/PrDetail, SpecFile, …
@@ -21,10 +23,13 @@ export * from './contracts/review-api.js';
 export * from './contracts/brief.js';
 export * from './contracts/intent.js';
 export * from './contracts/blast.js';
+export * from './contracts/pr-brief.js';
 export * from './contracts/knowledge.js';
 export * from './contracts/conventions.js';
 export * from './contracts/trace.js';
 export * from './contracts/platform.js';
+export * from './contracts/project-context.js';
+export * from './contracts/onboarding.js';
 export * from './contracts/why.js';
 export * from './contracts/eval-ci.js';
 export * from './contracts/observability.js';

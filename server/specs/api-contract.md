@@ -73,6 +73,15 @@ Files are grouped by role in `core, tests, wiring, docs, boilerplate` order; emp
 
 `degraded=true` with a `degraded_reason` when the index is off, partial, or missing (the ripgrep fallback always reports `no_data`, even with callers). `downstream` lists only symbols with ≥1 caller. Endpoints and crons are attributed only on the non-degraded path. 404 when the PR is unknown. A broken index yields `degraded_reason='index_failed'`, never a 500.
 
+## PR brief
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/pulls/:id/brief` | `PrBriefResponse` — `brief: null` when never generated; served from `pr_brief` regardless of head-SHA drift (AC-9), never calls the LLM |
+| POST | `/pulls/:id/brief` | `PrBriefResponse` — always a fresh generation (AC-2, AC-10), exactly one `risk_brief` feature-model call; rate-limited 6/min; `502 external_service_error` on a model failure, timeout, or schema failure, leaving the previously stored row untouched (AC-12); last write wins (no concurrency guard) |
+
+The request sent to the model is built only from already-computed facts — the PR's stored intent (when present), the blast-radius summary and caller file list (when present, even when degraded), the diff's file list (path + additions/deletions + Smart Diff role, never `patch`), the PR description, and the resolved project-context documents for the agent(s) that have reviewed this PR (or every enabled agent in the workspace, when none has). The PR title is never sent. Every file path the model names in `risks[].file_refs` or `review_focus[].file` is validated server-side against the PR's diff paths and its blast-radius caller files (path separators and a leading `./`/`/` are normalised before comparing); an entry that fails is dropped on its own — the rest of the brief, and the summary, are still cached and returned (AC-8/AC-8a). `risks` is sorted severity-first (`high`, then `medium`, then `low`), with ties kept in the model's own order (AC-6a); `review_focus` keeps the model's order unchanged, since that order IS the reading order (AC-7). `missing_sources` (`'intent' | 'blast'`) records which inputs were unavailable or degraded at generation time, so the client's single banner reflects what the cached brief was actually built from. The `risk_brief` feature model defaults to `openai`/`gpt-4.1`, overridable per workspace via Settings → Feature Models (same resolution as every other feature model). 404 when the PR is unknown.
+
 ## Agents
 
 | Method | Path | Contract |
@@ -94,6 +103,29 @@ Files are grouped by role in `core, tests, wiring, docs, boilerplate` order; emp
 | POST | `/repos/:id/conventions/skill` | save the (edited) draft as a Skill with `source: 'extracted'`, optionally linking it to `agent_ids` |
 
 A candidate is persisted only if a code-level check re-read the cited file and found the cited snippet — a wrong line number is corrected rather than dropped, and every rejection is reported in `drops` with its reason. The model never writes to the database.
+
+## Project context
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/repos/:id/context` | listing of `.md` documents under the configured roots (`DEVDIGEST_CONTEXT_ROOTS`, default `specs,docs,insights`), any depth. Scans on a cache miss, otherwise serves the in-memory cache; `used_by` counts are always live |
+| POST | `/repos/:id/context/rescan` | forces a fresh scan, bypassing the cache. Rate-limited to 10/min |
+| GET | `/repos/:id/context/file` | one document's raw source (`?path=`), read-only — nothing is ever written to the clone |
+| GET, PUT | `/agents/:id/context` | an agent's own attached paths (`PUT` replaces the whole ordered list), plus (`GET`) its inherited paths from linked skills and the resulting effective (run-time) order |
+| GET, PUT | `/skills/:id/context` | a skill's own attached paths, inherited by every agent linking it |
+| GET | `/skills/:id/context/preview` | the serialized `## Project context` block a skill would contribute (`?repo_id=`) — the one agent/skill-level "serializes as" preview |
+
+`clone_status` is `ready`, `not_cloned`, or `missing` — the latter two are a `200` empty state, never an error. `PUT` bodies are validated as repo-relative `.md` paths under a configured root; an unsafe or unrooted path is `422`. Attaching a path never reads or writes the clone; paths are read fresh at run time, so a path missing from the repo is skipped (never fails the run) and silently absent from that run's `specs_read`.
+
+## Onboarding tour
+
+| Method | Path | Contract |
+|---|---|---|
+| GET | `/repos/:id/onboarding` | the stored tour, as `OnboardingTour`. Always `200` for a known repo — `status: 'not_generated'` with `tour: null` is the empty state, not an error. `limited_data` is recomputed from the current repo-intel facts on every read |
+| POST | `/repos/:id/onboarding/generate` | (re)generate the tour inline (one LLM call), rate-limited to 6/min. `409` `index_not_ready` (with `details.index_status`) unless the repo's index status is `full` — no model call is made in that case. `502` `external_service_error` on a model failure, timeout, or a result that fails the schema. On any failure the previously stored tour (if any) is left untouched — last write wins otherwise, with no concurrency guard |
+| GET | `/repos/:id/onboarding/file` | one source file's content (`?path=`), read-only. Serves only paths that appear in the stored tour's `links` — any other path is `404`; a path escaping the clone or shaped like an absolute/Windows path is `422` |
+
+The tour is always exactly 5 fixed sections (`architecture`, `critical_paths`, `how_to_run`, `reading_path`, `first_tasks`), generated from the repo-intel repo map/critical paths/top files plus the repo's Project Context documents. The feature-model override comes from `Settings → Feature Models` (`onboarding` id); the registry default is `openrouter`/`deepseek-v4-flash`.
 
 ## Repo intelligence
 

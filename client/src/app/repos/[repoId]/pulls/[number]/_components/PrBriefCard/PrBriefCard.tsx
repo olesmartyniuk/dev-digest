@@ -1,74 +1,41 @@
 /* PrBriefCard — the PR-page brief card, container.
-   Intent-only in L03. L05 adds Blast/Risks/History blocks as sibling
-   `_components/*Block` children here. */
+   Intent (L03) + generated brief: summary, Risk areas, Review focus (L05 /
+   SPEC-03). Blast radius stays in OverviewTab (plan D6). */
 "use client";
 
-import { useTranslations } from "next-intl";
-import { Skeleton, ErrorState, EmptyState, Button, SectionLabel } from "@devdigest/ui";
-import { usePrIntent, useClassifyIntent } from "@/lib/hooks";
-import { IntentBlock } from "./_components/IntentBlock";
+import { usePrBrief, useGeneratePrBrief } from "@/lib/hooks";
+import { IntentSection } from "./_components/IntentSection";
+import { MissingDataBanner } from "./_components/MissingDataBanner";
+import { BriefSection } from "./_components/BriefSection";
 import { s } from "./styles";
 
-export function PrBriefCard({ prId }: { prId: string }) {
-  const t = useTranslations("brief");
-  const { data, isLoading, isError, refetch } = usePrIntent(prId);
-  const mutation = useClassifyIntent(prId);
-
-  if (isLoading) {
-    return (
-      <div style={s.card}>
-        <SectionLabel icon="Sparkles">{t("block.intent")}</SectionLabel>
-        <Skeleton height={16} width={320} />
-        <Skeleton height={14} width={220} style={{ marginTop: 8 }} />
-      </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <div style={s.card}>
-        <ErrorState title={t("unavailable")} body={t("unavailableHint")} onRetry={() => refetch()} />
-      </div>
-    );
-  }
+export function PrBriefCard({
+  prId,
+  onOpenFile,
+}: {
+  prId: string;
+  onOpenFile: (path: string) => void;
+}) {
+  const { data, isLoading, isError, refetch } = usePrBrief(prId);
+  const mutation = useGeneratePrBrief(prId);
+  const brief = data?.brief;
 
   return (
     <div style={s.card}>
-      <SectionLabel icon="Sparkles">{t("block.intent")}</SectionLabel>
+      {brief && brief.missing_sources.length > 0 && <MissingDataBanner sources={brief.missing_sources} />}
 
-      {data.intent === null ? (
-        <EmptyState
-          icon="Sparkles"
-          title={t("intent.empty")}
-          body={t("intent.emptyHint")}
-          cta={t("intent.classify")}
-          onCta={() => mutation.mutate()}
-          ctaLoading={mutation.isPending}
-        />
-      ) : (
-        <>
-          <IntentBlock intent={data.intent} />
-          <div style={s.rerunRow}>
-            <Button
-              kind="ghost"
-              size="sm"
-              icon="RefreshCw"
-              loading={mutation.isPending}
-              aria-label={t("intent.rerun")}
-              onClick={() => mutation.mutate()}
-            >
-              {t("intent.rerun")}
-            </Button>
-          </div>
-        </>
-      )}
+      <IntentSection prId={prId} />
 
-      {data.skipped && (
-        <div role="status" style={s.skipped}>
-          {t("intent.skipped", { reason: data.skipped })}
-        </div>
-      )}
-      {data.intent?.stale && <div style={s.stale}>{t("intent.stale")}</div>}
+      <BriefSection
+        brief={brief}
+        isLoading={isLoading}
+        isError={isError}
+        refetch={() => refetch()}
+        generate={() => mutation.mutate()}
+        isGenerating={mutation.isPending}
+        generateError={mutation.error}
+        onOpenFile={onOpenFile}
+      />
     </div>
   );
 }

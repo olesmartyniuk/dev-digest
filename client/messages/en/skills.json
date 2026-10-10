@@ -119,5 +119,11 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "context": {
+    "title": "Project context to use",
+    "inheritNote": "Any agent using this skill inherits these documents.",
+    "serializesAs": "SERIALIZES AS",
+    "previewEmpty": "Attach a document to see the serialized block."
   }
 }

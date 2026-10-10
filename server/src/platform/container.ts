@@ -27,6 +27,9 @@ import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { SkillsService } from '../modules/skills/service.js';
 import { IntentService } from '../modules/intent/service.js';
+import { ContextService } from '../modules/context/service.js';
+import { BlastService } from '../modules/blast/service.js';
+import { SmartDiffService } from '../modules/smart-diff/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -76,6 +79,9 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _skillsService?: SkillsService;
   private _intentService?: IntentService;
+  private _contextService?: ContextService;
+  private _blastService?: BlastService;
+  private _smartDiffService?: SmartDiffService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -120,6 +126,34 @@ export class Container {
    */
   get intentService(): IntentService {
     return (this._intentService ??= new IntentService(this));
+  }
+
+  /**
+   * Project Context (L05) — scan/attach/preview + run-time resolution. MUST be
+   * a singleton: it owns the in-memory per-repo scan cache (D8), which routes
+   * and the review run executor share.
+   */
+  get contextService(): ContextService {
+    return (this._contextService ??= new ContextService(this));
+  }
+
+  /**
+   * Blast radius (L04) reshape. Exposed here so the brief module (L05) can
+   * read it without reaching into `modules/blast/` directly
+   * (`no-cross-module-reach`). Stateless — a fresh instance is fine too, but a
+   * cached one matches the other service getters.
+   */
+  get blastService(): BlastService {
+    return (this._blastService ??= new BlastService(this));
+  }
+
+  /**
+   * Smart Diff (L03) path classification. Exposed here so the brief module
+   * (L05) can read it without reaching into `modules/smart-diff/` directly
+   * (`no-cross-module-reach`).
+   */
+  get smartDiffService(): SmartDiffService {
+    return (this._smartDiffService ??= new SmartDiffService(this));
   }
 
   get codeIndex(): CodeIndex {

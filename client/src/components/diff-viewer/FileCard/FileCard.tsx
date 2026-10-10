@@ -50,16 +50,24 @@ export function FileCard({
   file,
   commenting,
   findings,
+  focused,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   findings?: DiffFindingApi;
+  /** A Review focus click (D8) landed on this file: start open and scroll into view. */
+  focused?: boolean;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
+    !!focused || (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    // Optional call guards jsdom, which has no `scrollIntoView`.
+    if (focused) rootRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [focused]);
 
   // Shared by both the comments and findings partitions below.
   const renderedKeys = React.useMemo(() => {
@@ -91,7 +99,7 @@ export function FileCard({
     : 0;
 
   return (
-    <div style={s.fileCard}>
+    <div ref={rootRef} data-file-path={file.path} style={s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
