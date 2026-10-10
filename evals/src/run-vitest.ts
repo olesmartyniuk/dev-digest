@@ -18,6 +18,7 @@ export function countTests(vitestArgs: string[]): number | null {
   try {
     const out = execFileSync("pnpm", ["exec", "vitest", "list", ...vitestArgs], {
       cwd: EVALS_DIR,
+      shell: process.platform === "win32", // pnpm is pnpm.cmd on Windows
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     });
@@ -35,6 +36,7 @@ export function runVitestOnce(label: string, vitestArgs: string[], extraEnv: Rec
     let out = "";
     const child = spawn("pnpm", ["exec", "vitest", "run", "--reporter=dot", ...vitestArgs], {
       cwd: EVALS_DIR,
+      shell: process.platform === "win32", // pnpm is pnpm.cmd on Windows
       env: { ...process.env, EVAL_QUIET: "1", ...extraEnv },
       stdio: ["ignore", "pipe", "pipe"],
     });

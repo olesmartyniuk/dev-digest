@@ -39,16 +39,18 @@ grep for imports crossing package boundaries:
 
 export const cases: SkillCase[] = [
   {
-    name: "full report follows the required 5-section structure with a Mermaid graph",
+    name: "full report: overview, ranked findings, Mermaid graph, install priority",
     kind: "quality",
-    prompt: `Run a dependency check on this repo. I want the full report: graph, sizes, prioritized findings, recommendations.\n\n${REPO_DATA}`,
-    grounding: ["```mermaid", "flowchart"],
+    prompt: `Run a dependency check on this repo. I want the full report: graph, sizes, prioritized findings, recommendations.
+
+${REPO_DATA}`,
+    grounding: ["```mermaid"],
     practices: [
-      "the report has a section named 'Scope' listing which packages (client, server, reviewer-core, e2e) were analyzed",
-      "the report includes a Mermaid diagram (a fenced ```mermaid code block using flowchart) showing dependency relationships between packages",
-      "the report has a section with a size breakdown table showing dependencies and their installed size, not just a vague size statement",
-      "the report has a 'Findings & Priorities' section (or equivalently named) that groups findings under explicit severity tiers such as P0, P1, P2, or Info — not an unranked bullet list",
-      "the report ends with a Summary section giving 3-5 concrete, actionable takeaways ordered by priority",
+      "the report has an overview/summary covering every analyzed package (server, client, reviewer-core, e2e) with per-package counts or sizes",
+      "the report includes a Mermaid diagram (a fenced ```mermaid code block) showing dependency relationships between packages or their heaviest dependencies",
+      "the report includes sizes as concrete numbers per dependency (e.g. next 132M, playwright 210M), not just a vague statement about size",
+      "findings are ranked or prioritized by how actionable they are, not presented as an unordered list",
+      "the report orders dependencies by install/load priority: runtime dependencies first, then build/test (dev) dependencies, heaviest first within each tier",
       "every finding names a specific package, dependency, or file rather than giving generic advice like 'consider optimizing dependencies'",
     ],
     threshold: 0.7,
@@ -57,24 +59,28 @@ export const cases: SkillCase[] = [
   {
     name: "distinguishes internal (path-alias) dependencies from external npm dependencies",
     kind: "quality",
-    prompt: `This repo isn't a monorepo — server, client, reviewer-core, and e2e share code via TypeScript path aliases, not workspace:* packages. Analyze our dependencies, including how these packages depend on each other internally.\n\n${REPO_DATA}`,
+    prompt: `This repo isn't a monorepo — server, client, reviewer-core, and e2e share code via TypeScript path aliases, not workspace:* packages. Analyze our dependencies, including how these packages depend on each other internally.
+
+${REPO_DATA}`,
     practices: [
       "the answer explicitly distinguishes internal cross-package dependencies (the @shared/review-types alias and the direct relative import into reviewer-core/src/pipeline.js) from external npm package dependencies, rather than treating them as the same kind of dependency",
-      "the answer flags server/src/services/review-service.ts importing reviewer-core/src/pipeline.js by relative path instead of through reviewer-core's public entry point as a P0-tier or otherwise explicitly called-out issue",
+      "the answer explicitly calls out server/src/services/review-service.ts importing reviewer-core/src/pipeline.js by relative path instead of through reviewer-core's public entry point",
       "the answer does not claim these packages are linked via workspace:* or pnpm workspaces, since the project explicitly is not a monorepo",
     ],
     threshold: 0.6,
     maxTurns: 10,
   },
   {
-    name: "severity tiers are used consistently and recommendations are specific, not vague",
+    name: "finds drift/unused deps and recommends specifically without acting",
     kind: "quality",
-    prompt: `We suspect some npm dependencies in server/ and client/ are unused or duplicated across packages with different versions. Check our dependencies and tell me what to prioritize fixing first.\n\n${REPO_DATA}`,
+    prompt: `We suspect some npm dependencies in server/ and client/ are unused or duplicated across packages with different versions. Check our dependencies and tell me what to prioritize fixing first.
+
+${REPO_DATA}`,
     practices: [
-      "findings are explicitly labeled with one of the defined severity tiers (P0, P1, P2, or Info) rather than left unranked",
-      "the three different zod versions across server, client, and reviewer-core are called out explicitly as version drift",
+      "the different zod versions across server, client, and reviewer-core (3.23.8 / 3.22.4 / 3.23.8) are called out explicitly as version drift",
       "moment being declared in server/package.json but never imported anywhere under server/src is called out explicitly as an unused dependency",
-      "each recommendation names a specific package name and package.json/file location (e.g. server/package.json, moment, zod) rather than a generic suggestion",
+      "findings are prioritized: the answer says what to fix first rather than listing everything with equal weight",
+      "each recommendation names a specific package and file location (e.g. server/package.json, moment, zod) and, where relevant, what it would save (e.g. 4.2M from removing moment) rather than a generic suggestion",
       "removing a dependency (e.g. moment) is presented as a recommendation for the user to confirm, not something already executed",
     ],
     threshold: 0.6,
