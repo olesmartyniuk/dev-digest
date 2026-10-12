@@ -14,9 +14,13 @@ services:
     image: ghcr.io/berriai/litellm:main-stable
     container_name: devdigest-eval-litellm
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000" # loopback only — the proxy is unauthenticated
     environment:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?set OPENROUTER_API_KEY in the environment}
+      # Recent LiteLLM images refuse to boot without a master key. We run an ephemeral, loopback-only,
+      # no-auth gateway on purpose (the SDK / OpenAI client just forward OPENROUTER_API_KEY as a bearer
+      # that the proxy ignores), so opt out of that check explicitly.
+      LITELLM_DANGEROUSLY_PERMIT_WEAK_OR_UNSET_MASTER_KEY: "true"
     volumes:
       - ./litellm.config.yaml:/app/config.yaml:ro
     command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1"]
