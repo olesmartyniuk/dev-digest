@@ -6,7 +6,8 @@
  *
  *   .claude/skills/<name>/**   OR  evals/skills/<name>/**   → run evals/skills/<name>  (content tier)
  *   .claude/agents/<name>.md   OR  evals/agents/<name>/**   → run evals/agents/<name>  (tool tier)
- *   CLAUDE.md / .claude/CLAUDE.md / any agent / engine change → run the workflow tier
+ *   root CLAUDE.md / evals/workflow/** / evals/src/** change  → run the workflow tier
+ *   EVAL_ALL=1 (manual dispatch)                              → run everything that has evals
  *
  * A changed artifact with NO written evals is NOT a failure: it is reported on the `skipped_*`
  * outputs so the job can print a visible "SKIP <name> (no evals)" line instead of going red.
@@ -53,21 +54,23 @@ const agentNames = touched(
   /^evals\/agents\/([^/]+)\//,
 );
 
-const skills = skillNames.filter((n) => hasEvals("skills", n));
-const skippedSkills = skillNames.filter((n) => !hasEvals("skills", n));
-const agents = agentNames.filter((n) => hasEvals("agents", n));
-const skippedAgents = agentNames.filter((n) => !hasEvals("agents", n));
+// EVAL_ALL=1 (manual workflow_dispatch) → every suite that has evals, nothing skipped.
+const all = process.env.EVAL_ALL === "1";
+const withEvals = (tier) =>
+  existsSync(join(EVALS_DIR, tier))
+    ? readdirSync(join(EVALS_DIR, tier)).filter((n) => hasEvals(tier, n))
+    : [];
 
-// The workflow tier measures the LIVE harness, so anything that changes it re-triggers it:
-// the root or .claude CLAUDE.md, any agent definition, the workflow cases, or the engine itself.
-const runWorkflow = changed.some(
-  (f) =>
-    f === "CLAUDE.md" ||
-    f === ".claude/CLAUDE.md" ||
-    /^\.claude\/agents\/.+\.md$/.test(f) ||
-    /^evals\/workflow\//.test(f) ||
-    /^evals\/src\//.test(f),
-);
+const skills = all ? withEvals("skills") : skillNames.filter((n) => hasEvals("skills", n));
+const skippedSkills = all ? [] : skillNames.filter((n) => !hasEvals("skills", n));
+const agents = all ? withEvals("agents") : agentNames.filter((n) => hasEvals("agents", n));
+const skippedAgents = all ? [] : agentNames.filter((n) => !hasEvals("agents", n));
+
+// The workflow tier measures the LIVE harness: it re-runs when the ROOT CLAUDE.md changes (package
+// CLAUDE.md files are deliberately ignored), or when the workflow cases / the engine change.
+const runWorkflow =
+  process.env.EVAL_ALL === "1" ||
+  changed.some((f) => f === "CLAUDE.md" || /^evals\/workflow\//.test(f) || /^evals\/src\//.test(f));
 
 const out = process.env.GITHUB_OUTPUT;
 const write = (k, v) => (out ? appendFileSync(out, `${k}=${v}\n`) : console.log(`${k}=${v}`));

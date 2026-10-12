@@ -188,6 +188,13 @@ workflow cases:
 
 ### Wiring it into GitHub Actions (per-PR)
 
+> **This repo ships it:** `.github/workflows/evals.yml`. Changed skill/agent with evals → blocking
+> check; root `CLAUDE.md` (or `evals/workflow|src`) → non-blocking workflow tier; changed artifact
+> without evals → reported as skipped. Defaults to `deepseek/deepseek-v4-flash`; override via the
+> `workflow_dispatch` inputs or the repo variables `EVAL_MODEL` / `EVAL_JUDGE_MODEL`. A sticky PR
+> comment summarises each run. Manual dispatch runs every suite. The generic sample below is the
+> template it was derived from.
+
 The engine is CI-ready: bring the proxy up as a step, wait for it, run the tier, tear it down. Put
 the OpenRouter key in the repo's **Actions secrets** as `OPENROUTER_API_KEY` (Settings → Secrets and
 variables → Actions). Create `.github/workflows/<name>.yml` in your repo:
