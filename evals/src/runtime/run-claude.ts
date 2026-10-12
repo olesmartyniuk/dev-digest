@@ -7,6 +7,7 @@ import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
 import { EVAL_MODEL, MAX_TURNS, SPAWN_TOOLS } from "../config.js";
 import { REPO_ROOT } from "../artifacts/paths.js";
 import { subscriptionEnv } from "./env.js";
+import { assertBudget, budgetEnabled, charge, priceUsd, spentUsd, BUDGET_USD, BudgetExceededError } from "../budget.js";
 
 export interface Metrics {
   durationMs: number;
@@ -47,6 +48,7 @@ export interface RunOptions {
 
 /** Run one headless Claude turn-loop and extract what it ACTUALLY did (not its prose). */
 export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<Result> {
+  assertBudget(); // spend cap: refuse to start a session once the budget is gone
   const allowedTools = opts.allowedTools ?? [];
   // With no tools, a subagent/skill prompt that says "read files" will loop on denied tool
   // calls until max-turns. For these content-only evals the input is already in the prompt,
@@ -87,6 +89,12 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
   let inputTokens = 0;
   let outputTokens = 0;
   let stoppedEarly = false;
+  // Spend-cap bookkeeping: every assistant turn re-sends the context, so the billed input is the SUM
+  // of per-turn input (cache tokens priced as plain input — pessimistic on purpose).
+  const model = opts.model ?? EVAL_MODEL;
+  let spendInTokens = 0;
+  let spendOutTokens = 0;
+  let budgetHit = false;
   // Wall-clock fallback: on an early stop we break before the result message that carries
   // duration_ms/usage, so those stay 0. Stamp duration ourselves, and accumulate output tokens
   // off each assistant message, so an early-stopped case still reports meaningful metrics.
@@ -98,7 +106,15 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
     loop: for await (const msg of query({ prompt, options })) {
       if (msg.type === "assistant") {
         numTurns++;
-        outputTokens += (msg.message as any).usage?.output_tokens ?? 0;
+        const u = (msg.message as any).usage ?? {};
+        outputTokens += u.output_tokens ?? 0;
+        spendInTokens += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+        spendOutTokens += u.output_tokens ?? 0;
+        // Stop mid-session the moment this session pushes the run over the cap.
+        if (budgetEnabled() && spentUsd() + priceUsd(model, spendInTokens, spendOutTokens) >= BUDGET_USD) {
+          budgetHit = true;
+          break loop;
+        }
         for (const block of msg.message.content as any[]) {
           if (block.type === "text") textParts.push(block.text);
           else if (block.type === "tool_use") {
@@ -145,9 +161,14 @@ export async function runClaude(prompt: string, opts: RunOptions = {}): Promise<
   } catch (err) {
     isError = true;
     if (!resultText && textParts.length === 0) {
+      charge("session-error", model, spendInTokens, spendOutTokens); // still book what was spent
       throw err; // nothing usable collected — surface the failure
     }
   }
+
+  // Book what this session cost; if it blew the cap, fail loudly rather than return a partial trace.
+  const spent = charge("session", model, spendInTokens, spendOutTokens);
+  if (budgetHit) throw new BudgetExceededError(spentUsd() || spent);
 
   // Early stop never reached the result message, so fall back to the wall-clock duration.
   if (stoppedEarly && durationMs === 0) durationMs = Date.now() - startedAt;

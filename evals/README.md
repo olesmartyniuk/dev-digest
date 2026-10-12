@@ -192,7 +192,10 @@ workflow cases:
 > check; root `CLAUDE.md` (or `evals/workflow|src`) → non-blocking workflow tier; changed artifact
 > without evals → reported as skipped. Defaults to `deepseek/deepseek-v4-flash`; override via the
 > `workflow_dispatch` inputs or the repo variables `EVAL_MODEL` / `EVAL_JUDGE_MODEL`. A sticky PR
-> comment summarises each run. Manual dispatch runs every suite. The generic sample below is the
+> comment summarises each run.
+> Cost controls: `EVAL_BUDGET_USD` cap (default $0.25, repo variable of the same name overrides), draft
+> PRs skipped, suites sequential with `--bail=1`, and a suite that already passed on identical inputs
+> (artifact + cases + engine + models) is not re-run — it shows as ♻️ cached in the comment. Manual dispatch runs every suite. The generic sample below is the
 > template it was derived from.
 
 The engine is CI-ready: bring the proxy up as a step, wait for it, run the tier, tear it down. Put
@@ -529,6 +532,9 @@ Cheap and orthogonal; the `TrendReporter` keeps writing test-level outcome rows 
 | `EVAL_MAX_TURNS` | `8` | max agent turns per case |
 | `EVAL_CONFIG` | `candidate` | `benchmark` sets this to `baseline` to skip artifact injection |
 | `EVAL_QUIET` | unset | suppress per-run trace spam during multi-run aggregation |
+| `EVAL_BUDGET_USD` | unset (no cap) | hard spend cap for the run, e.g. `0.25`. Every call is priced from its token usage into `results/budget-ledger.jsonl`; at the cap a `BudgetExceededError` stops all further model calls (also mid-session). CI sets `0.25` |
+| `EVAL_PRICE_IN` / `EVAL_PRICE_OUT` | per-model table in `src/budget.ts` | override USD per 1M tokens for the estimate (unknown models use a pessimistic $1/$5 so the cap trips early) |
+| `EVAL_CI_EXCLUDE` | `architecture-reviewer-lite` | comma list of suites CI never runs (eval-only A/B variants) |
 
 ## Records, statistics, flags
 

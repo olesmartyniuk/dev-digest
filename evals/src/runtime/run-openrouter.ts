@@ -13,6 +13,7 @@
 
 import OpenAI from "openai";
 import { EVAL_MODEL } from "../config.js";
+import { assertBudget, charge } from "../budget.js";
 import type { Result, RunOptions } from "./run-claude.js";
 
 const BASE_URL = (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
@@ -21,6 +22,7 @@ const BASE_URL = (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/
 export async function runOpenRouter(prompt: string, opts: RunOptions = {}): Promise<Result> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("EVAL_BACKEND=openrouter but OPENROUTER_API_KEY is not set");
+  assertBudget(); // spend cap: refuse to call the model once the budget is gone
 
   // Match run-claude's no-tools contract so the injected artifact behaves the same in both runtimes.
   const directive =
@@ -57,6 +59,8 @@ export async function runOpenRouter(prompt: string, opts: RunOptions = {}): Prom
     isError = true;
     text = err instanceof Error ? err.message : String(err);
   }
+
+  charge("content", opts.model ?? EVAL_MODEL, inputTokens, outputTokens);
 
   return {
     text,

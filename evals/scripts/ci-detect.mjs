@@ -6,7 +6,8 @@
  *
  *   .claude/skills/<name>/**   OR  evals/skills/<name>/**   → run evals/skills/<name>  (content tier)
  *   .claude/agents/<name>.md   OR  evals/agents/<name>/**   → run evals/agents/<name>  (tool tier)
- *   root CLAUDE.md / evals/workflow/** / evals/src/** change  → run the workflow tier
+ *   root CLAUDE.md / evals/workflow/** change                 → run the workflow tier
+ *   names in EVAL_CI_EXCLUDE (default: architecture-reviewer-lite) → never run in CI (cost)
  *   EVAL_ALL=1 (manual dispatch)                              → run everything that has evals
  *
  * A changed artifact with NO written evals is NOT a failure: it is reported on the `skipped_*`
@@ -58,19 +59,29 @@ const agentNames = touched(
 const all = process.env.EVAL_ALL === "1";
 const withEvals = (tier) =>
   existsSync(join(EVALS_DIR, tier))
-    ? readdirSync(join(EVALS_DIR, tier)).filter((n) => hasEvals(tier, n))
+    ? readdirSync(join(EVALS_DIR, tier)).filter((n) => hasEvals(tier, n) && !isExcluded(n))
     : [];
 
-const skills = all ? withEvals("skills") : skillNames.filter((n) => hasEvals("skills", n));
-const skippedSkills = all ? [] : skillNames.filter((n) => !hasEvals("skills", n));
-const agents = all ? withEvals("agents") : agentNames.filter((n) => hasEvals("agents", n));
-const skippedAgents = all ? [] : agentNames.filter((n) => !hasEvals("agents", n));
+// Eval-only A/B variants are never run in CI (they exist for local eval:repeat/eval:delta
+// comparison and would double the LLM spend). Override with EVAL_CI_EXCLUDE="a,b".
+const excludedSet = new Set(
+  (process.env.EVAL_CI_EXCLUDE ?? "architecture-reviewer-lite").split(",").map((s) => s.trim()).filter(Boolean),
+);
+const isExcluded = (n) => excludedSet.has(n);
 
-// The workflow tier measures the LIVE harness: it re-runs when the ROOT CLAUDE.md changes (package
-// CLAUDE.md files are deliberately ignored), or when the workflow cases / the engine change.
+const runnable = (tier, n) => hasEvals(tier, n) && !isExcluded(n);
+const skills = all ? withEvals("skills") : skillNames.filter((n) => runnable("skills", n));
+const skippedSkills = all ? [] : skillNames.filter((n) => !hasEvals("skills", n));
+const agents = all ? withEvals("agents") : agentNames.filter((n) => runnable("agents", n));
+const skippedAgents = all ? [] : agentNames.filter((n) => !hasEvals("agents", n));
+const excluded = all ? [] : [...skillNames, ...agentNames].filter(isExcluded);
+
+// The workflow tier measures the LIVE harness: it re-runs only when the ROOT CLAUDE.md changes
+// (package CLAUDE.md files are ignored) or the workflow cases change. Engine (evals/src) edits do
+// NOT trigger it — the model-free unit tests cover those, and the tier is the costliest one.
 const runWorkflow =
   process.env.EVAL_ALL === "1" ||
-  changed.some((f) => f === "CLAUDE.md" || /^evals\/workflow\//.test(f) || /^evals\/src\//.test(f));
+  changed.some((f) => f === "CLAUDE.md" || /^evals\/workflow\//.test(f));
 
 const out = process.env.GITHUB_OUTPUT;
 const write = (k, v) => (out ? appendFileSync(out, `${k}=${v}\n`) : console.log(`${k}=${v}`));
@@ -80,6 +91,7 @@ write("agents", JSON.stringify(agents));
 write("run_workflow", String(runWorkflow));
 write("skipped_skills", skippedSkills.join(" "));
 write("skipped_agents", skippedAgents.join(" "));
+write("excluded", excluded.join(" "));
 
 // Human-readable summary in the step log.
 console.error("── eval change detection ──");
@@ -89,3 +101,4 @@ console.error(`agents → run  : ${agents.join(", ") || "(none)"}`);
 console.error(`workflow tier : ${runWorkflow ? "run" : "skip"}`);
 if (skippedSkills.length) console.error(`SKIP skills (no evals): ${skippedSkills.join(", ")}`);
 if (skippedAgents.length) console.error(`SKIP agents (no evals): ${skippedAgents.join(", ")}`);
+if (excluded.length) console.error(`EXCLUDED from CI: ${excluded.join(", ")}`);
