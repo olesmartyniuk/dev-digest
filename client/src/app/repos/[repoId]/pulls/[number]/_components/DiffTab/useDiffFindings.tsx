@@ -4,6 +4,7 @@ import React from "react";
 import type { DiffFindingApi } from "@/components/diff-viewer";
 import { useFindingAction, usePrReviews } from "@/lib/hooks/reviews";
 import { FindingCard } from "../FindingCard";
+import { useTurnIntoEvalCase } from "../../_hooks/useTurnIntoEvalCase";
 
 /**
  * The inline-finding adapter handed to `DiffViewer`/`FileCard` (mirrors
@@ -18,6 +19,7 @@ export function useDiffFindings(
 ): DiffFindingApi {
   const { data: reviews } = usePrReviews(prId);
   const action = useFindingAction();
+  const evalCase = useTurnIntoEvalCase();
 
   const findings = React.useMemo(() => (reviews ?? []).flatMap((r) => r.findings), [reviews]);
 
@@ -30,9 +32,11 @@ export function useDiffFindings(
         repoFullName={repoFullName}
         headSha={headSha}
         onAction={(act) => prId && action.mutate({ findingId: f.id, action: act, prId })}
+        onTurnIntoEval={() => evalCase.turn(f.id)}
+        evalPending={evalCase.pendingId === f.id}
       />
     ),
-    [action, repoFullName, headSha, prId],
+    [action, evalCase, repoFullName, headSha, prId],
   );
 
   return React.useMemo(() => ({ findings, renderFinding }), [findings, renderFinding]);

@@ -144,3 +144,21 @@ An unindexed repo is a valid state, not an error: reviews still run, with less c
 | GET | `/settings/secrets-status` | which keys are present. **Never** returns key material |
 | POST | `/settings/test-connection` | validate a provider key and, when one is supplied, persist it through `SecretsProvider` and invalidate cached provider clients. Rate-limited to 20/min |
 | GET | `/workspace` | the current single local workspace |
+
+## Eval (L06)
+
+Regression protection for the review agent (SPEC-04, `specs/eval-pipeline.md`). Accepted/dismissed findings become frozen eval cases; a run executes the agent's **current** config over those frozen inputs through `reviewPullRequest` and scores the result in code (recall / precision / citation accuracy, no LLM in the scorer). Contracts: `contracts/eval-pipeline.ts` (new, both vendored copies).
+
+| Method | Path | Contract |
+|---|---|---|
+| POST | `/agents/:id/eval-runs` | start a background eval run; body `{ case_ids? }` is optional (omitted = all the agent's cases, present = a **partial** run). Returns `202` with the `running` run (`EvalRunSummary`) **before** any LLM call. `422` `eval_no_cases` when there is nothing to run (no run is created); `409` `eval_run_in_progress` when the agent already has a running run (a partial unique index, not a check-then-insert); rate-limited to 10/min. A missing provider key does not fail the request — the run ends `failed` with the review-run error text |
+| GET | `/agents/:id/eval-runs` | run history, newest first (full and partial; `partial`, `status`, `agent_version`, aggregate and `na` flags per run) |
+| GET | `/eval-runs/:id` | one run: aggregate with `per_trace`, the config snapshot the run used (`config.system_prompt` is what Compare diffs — seeded agents have no `agent_versions` v1 row), and the per-case results. `404` when unknown |
+| GET | `/agents/:id/eval-cases` | the agent's cases with `summary` (item counts, `CRITICAL·security` chip) and `last_run` (`passed` / `failed` / `errored` / `never_run`) |
+| POST | `/agents/:id/eval-cases` | create a case (`EvalCaseBody`). `422` when `expected_output` fails the strict expectation schema, the diff does not parse, or an item names a file absent from the diff |
+| GET, PUT, DELETE | `/eval-cases/:id` | read / edit / delete one case. Delete cascades the case's run rows |
+| POST | `/findings/:id/eval-case` | turn a decided finding into a case: accepted -> `must_find`, dismissed -> `must_not_flag`, with the finding file's diff fragment frozen in. `201` created, `200` when a case already exists for that finding (idempotent). `409` `finding_undecided`, `409` `finding_no_agent` (the review has no producing agent — true of the seeded review), `409` `diff_unavailable` (nothing is persisted) |
+| GET | `/agents/:id/eval-dashboard` | `AgentEvalDashboard`: tiles/deltas/trend over **full** finished runs only, the runs table, and `regression` (a metric down >= 2 pts vs the previous full run; also surfaced in `dashboard.alert`) |
+| GET | `/eval-dashboard` | workspace dashboard: one card per agent that owns cases, plus recent runs across agents |
+
+Scoring is defined once in `reviewer-core/src/eval/score.ts`; a finding matches an expectation iff the normalized file paths are equal and the inclusive line ranges overlap. Boot reaping marks any `running` eval run `failed` ("Interrupted by server restart"), keeping its partial case rows.

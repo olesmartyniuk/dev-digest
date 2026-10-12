@@ -86,4 +86,16 @@ export const s = {
     gap: 10,
   } satisfies CSSProperties,
   composerActions: { display: "flex", gap: 8 } satisfies CSSProperties,
+  /** Visually hidden but still exposed to assistive tech (target of aria-describedby). */
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0, 0, 0, 0)",
+    whiteSpace: "nowrap",
+    border: 0,
+  } satisfies CSSProperties,
 } as const;

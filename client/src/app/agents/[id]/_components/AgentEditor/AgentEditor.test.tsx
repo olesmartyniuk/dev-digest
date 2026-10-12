@@ -17,6 +17,11 @@ vi.mock("./_components/ContextTab", () => ({
   ContextTab: ({ agentId }: { agentId: string }) => <div>Context tab for {agentId}</div>,
 }));
 
+// Same for the Evals tab (L06): it has its own test; here we only confirm routing.
+vi.mock("./_components/EvalsTab", () => ({
+  EvalsTab: ({ agentId }: { agentId: string }) => <div>Evals tab for {agentId}</div>,
+}));
+
 import { AgentEditor } from "./AgentEditor";
 
 afterEach(cleanup);
@@ -55,5 +60,11 @@ describe("A2 Agent Editor (smoke)", () => {
   it("renders the Context tab for ?tab=context (L05)", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="context" onTab={() => {}} />);
     expect(screen.getByText(`Context tab for ${AGENT.id}`)).toBeInTheDocument();
+  });
+
+  it("renders the Evals tab for ?tab=evals (L06)", () => {
+    renderWithIntl(<AgentEditor agent={AGENT} tab="evals" onTab={() => {}} />);
+    expect(screen.getByText("Evals")).toBeInTheDocument();
+    expect(screen.getByText(`Evals tab for ${AGENT.id}`)).toBeInTheDocument();
   });
 });

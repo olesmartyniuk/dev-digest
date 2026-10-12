@@ -10,6 +10,11 @@ import {
   Conformance,
   Onboarding,
   EvalRun,
+  EvalCaseBody,
+  EvalExpectationItem,
+  EvalRunSummary,
+  AgentEvalDashboard,
+  EvalWorkspaceDashboard,
   MemoryItem,
   RunTrace,
   Settings,
@@ -225,6 +230,81 @@ describe('AI contracts parse fixtures', () => {
         kind: 'decision',
         confidence: 0.92,
         sources: [{ pr: 401, context: 'ctx' }],
+      }),
+    ).not.toThrow();
+  });
+
+  it('eval pipeline contracts (SPEC-04)', () => {
+    // mockup-6 shape parses; a typo'd key and a zero line do not
+    expect(() =>
+      EvalExpectationItem.parse({
+        kind: 'must_find',
+        severity: 'CRITICAL',
+        category: 'security',
+        title: 'Hardcoded key',
+        file: 'src/config.ts',
+        start_line: 12,
+      }),
+    ).not.toThrow();
+    expect(() => EvalExpectationItem.parse({ kind: 'must_find', file: 'a.ts', line: 3 })).toThrow();
+    expect(() => EvalExpectationItem.parse({ kind: 'must_find', file: 'a.ts', start_line: 0 })).toThrow();
+
+    expect(() =>
+      EvalCaseBody.parse({ name: 'n', input_diff: '', expected_output: [] }),
+    ).toThrow();
+    expect(() =>
+      EvalCaseBody.parse({ name: 'n', input_diff: 'diff --git a/x b/x', expected_output: [] }),
+    ).not.toThrow();
+
+    const aggregate = {
+      recall: 1,
+      precision: 0.5,
+      citation_accuracy: 1,
+      traces_passed: 1,
+      traces_total: 2,
+      duration_ms: 10,
+      cost_usd: null,
+      per_trace: [],
+    };
+    const summary = {
+      id: 'r1',
+      agent_id: 'a1',
+      agent_name: 'Security Reviewer',
+      agent_version: 2,
+      model: 'm',
+      status: 'done',
+      partial: false,
+      started_at: '2026-10-11T00:00:00.000Z',
+      finished_at: '2026-10-11T00:00:05.000Z',
+      case_ids: ['c1', 'c2'],
+      case_count: 2,
+      errored_count: 0,
+      cost_usd: null,
+      error: null,
+      aggregate,
+      na: { recall: false, precision: false, citation_accuracy: false },
+    };
+    expect(() => EvalRunSummary.parse(summary)).not.toThrow();
+    expect(() =>
+      AgentEvalDashboard.parse({
+        dashboard: {
+          owner_kind: 'agent',
+          owner_id: 'a1',
+          cases_total: 2,
+          current: { recall: 1, precision: 0.5, citation_accuracy: 1, traces_passed: 1, traces_total: 2, cost_usd: null },
+          delta: { recall: 0, precision: 0, citation_accuracy: 0 },
+          trend: [],
+          recent_runs: [],
+          alert: null,
+        },
+        runs: [summary],
+        regression: null,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      EvalWorkspaceDashboard.parse({
+        agents: [{ agent_id: 'a1', agent_name: 'S', model: 'm', cases_total: 2, last_run: summary, trend: [] }],
+        recent_runs: [summary],
       }),
     ).not.toThrow();
   });

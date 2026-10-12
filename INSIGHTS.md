@@ -49,6 +49,8 @@ belongs here.
 
 - **2026-10-04** — On Windows, running `pnpm install`/`pnpm typecheck` in either `client/` or `server/` when a devDependency has a native postinstall script (esbuild, sharp, cpu-features, protobufjs, ssh2, unrs-resolver) fails with `ERR_PNPM_IGNORED_BUILDS`, and on that failure pnpm writes a `pnpm-workspace.yaml` stub (an `allowBuilds:` map) into the package root — even though this repo is explicitly "not a monorepo" and neither package is meant to have one. The install itself still completes (`node_modules` is populated), so the fix is to delete the stray `pnpm-workspace.yaml` afterward, not to run `pnpm approve-builds`. Evidence: `CLAUDE.md:46`.
 
+- **2026-10-11** — Running `pnpm verify:l06` from the repo root makes pnpm 12 do an install-before-run for the root `package.json`, which writes a root `pnpm-lock.yaml` and `node_modules/` even though the manifest has no dependencies (the plan says no root lockfile; `node_modules/` is git-ignored, the lockfile is not). Delete the lockfile after a run, or call `node scripts/verify-l06.mjs` directly, which does the same checks without touching the tree; the script also has to spawn `node` by name rather than `process.execPath`, because `shell: true` on Windows splits `C:\Program Files\nodejs\node.exe` at the space. Evidence: `package.json:7`, `scripts/verify-l06.mjs:83`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

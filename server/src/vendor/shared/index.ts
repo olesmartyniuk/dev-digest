@@ -10,6 +10,7 @@
  *                         Skill/CommunitySkill, ConventionCandidate, Agent
  *  - contracts/onboarding OnboardingTour, OnboardingSectionKind, OnboardingIndexNotReady
  *  - contracts/conventions Convention, ConventionExtractResult, ConventionSkillDraft
+ *  - contracts/eval-pipeline EvalExpectation, EvalCaseView, EvalRunSummary, AgentEvalDashboard (L06)
  *  - contracts/trace      RunTrace, RunEvent, RunLogLine (single-document trace)
  *  - contracts/platform   Settings, ConnTestResult, Repo, PrMeta/PrDetail, SpecFile, …
  *  - adapters             adapter interfaces + ModelInfo
@@ -32,6 +33,7 @@ export * from './contracts/project-context.js';
 export * from './contracts/onboarding.js';
 export * from './contracts/why.js';
 export * from './contracts/eval-ci.js';
+export * from './contracts/eval-pipeline.js';
 export * from './contracts/observability.js';
 export * from './contracts/productionize.js';
 export * from './adapters.js';
