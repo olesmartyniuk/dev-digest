@@ -12,7 +12,8 @@
     "metrics": {
       "recall": "RECALL",
       "precision": "PRECISION",
-      "citationAccuracy": "CITATION ACCURACY"
+      "citationAccuracy": "CITATION ACCURACY",
+      "tracesPassed": "TRACES PASSED"
     },
     "legend": {
       "recall": "Recall",
@@ -25,10 +26,29 @@
       "precision": "Precision",
       "citation": "Citation",
       "pass": "Pass",
-      "cost": "Cost"
+      "cost": "Cost",
+      "agent": "Agent",
+      "date": "Date",
+      "version": "Version",
+      "passCol": "Pass"
     },
     "pass": "pass",
-    "fail": "fail"
+    "fail": "fail",
+    "neverRun": "never run",
+    "passXofY": "pass {passed}/{total}",
+    "metricShort": {
+      "recall": "RECALL",
+      "precision": "PREC",
+      "cite": "CITE"
+    },
+    "loadError": "Could not load eval data.",
+    "recentAllAgents": "RECENT EVAL RUNS · ALL AGENTS",
+    "partial": "partial",
+    "failedRun": "failed",
+    "na": "n/a",
+    "compare": "Compare",
+    "compareHint": "Select exactly two runs to compare",
+    "regression": "{metric} dropped {pp} pts in v{version} (vs v{previous})"
   },
   "caseEditor": {
     "newCase": "New eval case",
@@ -55,7 +75,13 @@
     "invalidJson": "invalid JSON",
     "lastRunPassed": "Last run passed",
     "lastRunFailed": "Last run failed",
-    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s"
+    "resultSummary": "recall {recall}% · precision {precision}% · citation {citation}% · {duration}s",
+    "findingSkeleton": "Finding skeleton",
+    "cancel": "Cancel",
+    "neverRun": "Never run",
+    "runCaseNeedsSave": "Save your changes before running this case",
+    "contradictoryWarning": "A must_find and a must_not_flag item overlap: one finding would count as both found and noise.",
+    "schemaInvalid": "Doesn't match the expectation schema"
   },
   "evalsTab": {
     "metricsTitle": "Eval metrics",
@@ -71,7 +97,15 @@
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "viewDashboard": "View full dashboard",
+    "runAll": "Run all evals ({count})",
+    "passingSummary": "{passed}/{total} passing",
+    "expectedGot": "expected {expected, plural, one {# finding} other {# findings}}, got {actual}",
+    "emptyExpectation": "empty []",
+    "errored": "errored",
+    "confirmDelete": "Delete eval case \"{name}\"? Its run history is deleted too.",
+    "loadError": "Could not load eval cases."
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",
@@ -79,6 +113,29 @@
     "crumbAgents": "Agents",
     "crumbEvals": "Evals",
     "crumbNewCase": "New case",
-    "crumbEvalCase": "Eval case"
+    "crumbEvalCase": "Eval case",
+    "allAgents": "All agents",
+    "switchAgent": "Agent",
+    "crumbAgent": "Agent"
+  },
+  "turnIntoCase": {
+    "action": "Turn into eval case",
+    "disabledHint": "Accept or dismiss this finding first: the decision decides whether the agent must find it or must not flag it.",
+    "created": "Eval case created",
+    "existing": "Eval case already exists",
+    "openEvals": "Open Evals tab"
+  },
+  "compare": {
+    "title": "Compare runs · v{old} → v{new}",
+    "titleLoading": "Compare runs",
+    "recall": "RECALL",
+    "precision": "PRECISION",
+    "citation": "CITATION",
+    "cost": "COST",
+    "promptDiff": "SYSTEM PROMPT DIFF",
+    "noPromptChange": "No prompt change (same agent version).",
+    "caseSetWarning": "These runs covered different case sets, so the deltas are not like-for-like.",
+    "loadError": "One of the selected runs no longer exists.",
+    "close": "Close"
   }
 }

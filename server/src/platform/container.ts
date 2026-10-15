@@ -6,9 +6,12 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  UnifiedDiff,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
+import type { PullRow } from '../db/rows.js';
+import type * as schema from '../db/schema.js';
 import { JobRunner } from './jobs.js';
 import { runBus, type RunBus } from './sse.js';
 import { LocalSecretsProvider } from '../adapters/secrets/local.js';
@@ -25,6 +28,7 @@ import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { loadDiff } from '../modules/reviews/diff-loader.js';
 import { SkillsService } from '../modules/skills/service.js';
 import { IntentService } from '../modules/intent/service.js';
 import { ContextService } from '../modules/context/service.js';
@@ -108,6 +112,19 @@ export class Container {
 
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  /**
+   * Load a PR's unified diff with the SAME loader reviews use (git diff, else
+   * pr_files patches). Exposed here so the eval module can freeze a fragment
+   * without reaching into modules/reviews (no-cross-module-reach).
+   */
+  loadPrDiff(
+    workspaceId: string,
+    pull: PullRow,
+    repo: typeof schema.repos.$inferSelect,
+  ): Promise<UnifiedDiff> {
+    return loadDiff(this, this.reviewRepo, workspaceId, pull, repo);
   }
 
   /**

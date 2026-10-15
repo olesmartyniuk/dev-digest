@@ -1,0 +1,266 @@
+# Harness evals — skills, subagents and the workflow tier, on OpenRouter (DeepSeek Flash by default).
+# See evals/README.md ("Wiring it into GitHub Actions") and evals/scripts/ci-detect.mjs.
+#
+#   changed skill            → evals/skills/<name>      (BLOCKING; "SKIP (no evals)" if none written)
+#   changed agent            → evals/agents/<name>      (BLOCKING; "SKIP (no evals)" if none written)
+#   changed root CLAUDE.md   → evals/workflow           (NON-blocking: activation/dispatch flake on non-Anthropic models)
+#
+# Cost controls: hard spend cap (EVAL_BUDGET_USD, default $0.25, enforced by evals/src/budget.ts),
+# draft PRs skipped, A/B variants excluded, suites run one at a time and stop at the first failing
+# test, and a suite that already PASSED on identical inputs (same artifact + cases + engine + model)
+# is not re-run on the next push (actions/cache markers). Manual dispatch ignores the cache.
+#
+# Model switch (highest priority first): workflow_dispatch inputs → repo variables
+# EVAL_MODEL / EVAL_JUDGE_MODEL → the default below. Secret: OPENROUTER_API_KEY.
+name: evals
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.claude/**'
+      - 'CLAUDE.md'
+      - 'evals/**'
+      - '.github/workflows/evals.yml'
+  workflow_dispatch:
+    inputs:
+      model:
+        description: OpenRouter model slug under test
+        default: deepseek/deepseek-v4-flash
+      judge_model:
+        description: OpenRouter model slug for the LLM judge (empty = same as model)
+        default: ''
+
+permissions:
+  contents: read
+  pull-requests: write # sticky PR comment
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evals:
+    name: evals
+    # Fork PRs get no secrets, and workflowTask runs a model with bypassPermissions on PR code.
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: evals
+    env:
+      EVAL_BACKEND: openrouter
+      OPENROUTER_BASE_URL: http://localhost:4000
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      EVAL_MODEL: ${{ inputs.model || vars.EVAL_MODEL || 'deepseek/deepseek-v4-flash' }}
+      EVAL_JUDGE_MODEL: ${{ inputs.judge_model || vars.EVAL_JUDGE_MODEL || inputs.model || vars.EVAL_MODEL || 'deepseek/deepseek-v4-flash' }}
+      EVAL_QUIET: '1'
+      EVAL_BUDGET_USD: ${{ vars.EVAL_BUDGET_USD || '0.25' }} # hard cap for the whole run, USD
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: evals/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - id: detect
+        name: Detect what to run
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVAL_ALL: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: |
+          if [ "$EVAL_ALL" != "1" ]; then
+            CHANGED_FILES="$(git diff --name-only "$BASE_SHA"...HEAD)"
+            export CHANGED_FILES
+          fi
+          node scripts/ci-detect.mjs
+
+      - name: Static checks (no model)
+        run: |
+          pnpm typecheck
+          pnpm vitest run src/
+
+      - id: need
+        name: Anything to run?
+        env:
+          SKILLS: ${{ steps.detect.outputs.skills }}
+          AGENTS: ${{ steps.detect.outputs.agents }}
+          WORKFLOW: ${{ steps.detect.outputs.run_workflow }}
+        run: |
+          if [ "$SKILLS" != "[]" ] || [ "$AGENTS" != "[]" ] || [ "$WORKFLOW" = "true" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Markers for suites that already passed on identical inputs (see header). Restored from the most
+      # recent run; new passes are added and the union is saved back at the end.
+      - name: Restore passed-suite cache
+        if: steps.need.outputs.any == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-cache
+          key: evals-pass-${{ github.run_id }}
+          restore-keys: evals-pass-
+
+      - name: Start OpenRouter proxy
+        if: steps.need.outputs.any == 'true'
+        run: |
+          docker compose -f proxy/docker-compose.yml up -d
+          pnpm proxy:wait
+
+      # BLOCKING: every changed skill / agent that has evals. All suites run even if one fails,
+      # then the step exits non-zero if any failed.
+      - id: gate
+        name: Skill + agent evals (blocking)
+        if: steps.need.outputs.any == 'true'
+        env:
+          SKILLS: ${{ steps.detect.outputs.skills }}
+          AGENTS: ${{ steps.detect.outputs.agents }}
+          EVAL_ALL: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: |
+          WS="$GITHUB_WORKSPACE"
+          mkdir -p "$WS/.ci" "$WS/.ci-cache/passed" && : > "$WS/.ci/gate.md"
+          fail=0
+          budget_hit=0
+
+          # Hash of everything that can change a suite's outcome (+ the models), so an unchanged
+          # suite that already passed is not paid for again on the next push.
+          suite_hash() {
+            { echo "$EVAL_MODEL|$EVAL_JUDGE_MODEL"; (cd "$WS" && git ls-files -z -- "$@" | xargs -0 sha1sum); } | sha1sum | cut -c1-16
+          }
+
+          run_suite() { # <label> <vitest pattern> <hash paths...>
+            local label="$1" pattern="$2"; shift 2
+            local marker="$WS/.ci-cache/passed/$(echo "$label" | tr ':/' '__')-$(suite_hash "$@")"
+            if [ "$budget_hit" = 1 ]; then
+              echo "| $label | ⏭️ not run (budget exhausted) |" >> "$WS/.ci/gate.md"; fail=1; return
+            fi
+            if [ "$EVAL_ALL" != "1" ] && [ -e "$marker" ]; then
+              echo "| $label | ♻️ passed earlier on identical inputs (cached, no LLM spend) |" >> "$WS/.ci/gate.md"; return
+            fi
+            local log="$WS/.ci/$(echo "$label" | tr ':/' '__').log"
+            if pnpm vitest run "$pattern" --no-file-parallelism --bail=1 2>&1 | tee "$log"; then
+              touch "$marker"
+              echo "| $label | ✅ pass |" >> "$WS/.ci/gate.md"
+            elif grep -q EVAL_BUDGET_EXCEEDED "$log"; then
+              budget_hit=1; fail=1
+              echo "| $label | 💸 stopped: budget exhausted |" >> "$WS/.ci/gate.md"
+            else
+              fail=1
+              echo "| $label | ❌ fail |" >> "$WS/.ci/gate.md"
+            fi
+          }
+
+          for s in $(echo "$SKILLS" | jq -r '.[]'); do
+            run_suite "skill:$s" "skills/$s" ".claude/skills/$s" "evals/skills/$s" evals/src evals/package.json
+          done
+          for a in $(echo "$AGENTS" | jq -r '.[]'); do
+            run_suite "agent:$a" "agents/$a" ".claude/agents/$a.md" "evals/agents/$a" evals/src evals/package.json CLAUDE.md docs specs
+          done
+          exit $fail
+
+      # NON-BLOCKING: indicative only on non-Anthropic models (see evals/README.md caveats).
+      - id: workflow
+        name: Workflow evals (non-blocking)
+        if: always() && steps.need.outputs.any == 'true' && steps.detect.outputs.run_workflow == 'true'
+        continue-on-error: true
+        run: pnpm eval:workflow --no-file-parallelism 2>&1 | tee ../.ci/workflow.log; exit "${PIPESTATUS[0]}"
+
+      - if: failure()
+        name: Proxy logs
+        run: docker compose -f proxy/docker-compose.yml logs --tail 100
+
+      - if: always() && steps.need.outputs.any == 'true'
+        name: Stop proxy
+        run: docker compose -f proxy/docker-compose.yml down
+
+      - name: Save passed-suite cache
+        if: always() && steps.need.outputs.any == 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: .ci-cache
+          key: evals-pass-${{ github.run_id }}
+
+      - id: report
+        name: Build report
+        if: always()
+        env:
+          SKILLS: ${{ steps.detect.outputs.skills }}
+          AGENTS: ${{ steps.detect.outputs.agents }}
+          SKIPPED_SKILLS: ${{ steps.detect.outputs.skipped_skills }}
+          SKIPPED_AGENTS: ${{ steps.detect.outputs.skipped_agents }}
+          EXCLUDED: ${{ steps.detect.outputs.excluded }}
+          RUN_WORKFLOW: ${{ steps.detect.outputs.run_workflow }}
+          GATE: ${{ steps.gate.outcome }}
+          WORKFLOW: ${{ steps.workflow.outcome }}
+        run: |
+          mkdir -p ../.ci
+          {
+            echo "<!-- devdigest-evals -->"
+            echo "### Harness evals"
+            spent="$(jq -s 'map(.usd) | add // 0' results/budget-ledger.jsonl 2>/dev/null || echo 0)"
+            echo "Model: \`$EVAL_MODEL\` · judge: \`$EVAL_JUDGE_MODEL\` · via OpenRouter · [run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+            printf 'Estimated LLM spend: **$%.4f** of the $%s budget\n' "$spent" "$EVAL_BUDGET_USD"
+            echo
+            if [ -s ../.ci/gate.md ]; then
+              echo "| Suite (blocking) | Result |"; echo "|---|---|"; cat ../.ci/gate.md
+            elif [ "$GATE" = "skipped" ] || [ -z "$GATE" ]; then
+              echo "_No skill or agent with evals was changed._"
+            else
+              echo "❌ Skill/agent evals did not complete (step: $GATE) — see the run log."
+            fi
+            echo
+            for n in $SKIPPED_SKILLS; do echo "- ⏭️ skill \`$n\` changed — **no evals written** (skipped)"; done
+            for n in $SKIPPED_AGENTS; do echo "- ⏭️ agent \`$n\` changed — **no evals written** (skipped)"; done
+            for n in $EXCLUDED; do echo "- ⏭️ \`$n\` changed — excluded from CI (eval-only A/B variant)"; done
+            echo
+            if [ "$RUN_WORKFLOW" = "true" ]; then
+              case "$WORKFLOW" in
+                success) echo "**Workflow tier** (non-blocking): ✅ pass" ;;
+                failure) echo "**Workflow tier** (non-blocking): ⚠️ failed — advisory only, does not block merge" ;;
+                *) echo "**Workflow tier** (non-blocking): ⏭️ not run ($WORKFLOW)" ;;
+              esac
+            else
+              echo "**Workflow tier**: not triggered (root \`CLAUDE.md\` unchanged)"
+            fi
+          } > ../.ci/comment.md
+          cat ../.ci/comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            evals/results/
+            .ci/
+          if-no-files-found: ignore
+
+      # Sticky comment: one comment per PR, edited in place on every push.
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('.ci/comment.md', 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const prev = comments.find((c) => c.body?.includes('<!-- devdigest-evals -->'));
+            if (prev) await github.rest.issues.updateComment({ owner, repo, comment_id: prev.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });

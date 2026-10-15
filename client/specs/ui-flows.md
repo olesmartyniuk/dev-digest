@@ -89,3 +89,20 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - `api-keys` stores provider keys and the GitHub token. Keys are write-only from the UI: the app shows whether a key is present, never its value.
 - `models` selects default models per feature.
 - A newly stored key takes effect for the next run without a restart.
+
+## `/eval` and `/eval/:agentId` — Eval Dashboard
+
+- Sidebar: **Eval Dashboard** under SKILLS LAB, after Conventions; highlighted on any `/eval*` path.
+- `/eval` (`GET /eval-dashboard`): one card per agent that owns eval cases (name, the agent's real model chip, last run `vN · date`, pass x/y, recall sparkline, RECALL/PREC/CITE) and a "RECENT EVAL RUNS · ALL AGENTS" table, newest first. With no runs it shows the `dashboard.noRuns` empty state. Metrics whose run-level denominator was zero render `n/a`.
+- `/eval/:agentId` (`GET /agents/:id/eval-dashboard`): breadcrumb Skills Lab > Eval Dashboard > agent, an "All agents" link, an agent switcher, **Run eval (N)** (server-sourced "Running…", survives reload), a regression banner when a metric dropped >= 2 pts versus the previous full run, three metric tiles with deltas, a METRIC TREND chart, and a RECENT RUNS table with a checkbox per finished run.
+- **Compare** is enabled only while exactly two runs are ticked (a third tick replaces the oldest). The modal orders the runs old -> new by `started_at` (never click order), shows recall / precision / citation (pts) and cost (USD) as `old -> new` with a signed delta, and a SYSTEM PROMPT DIFF read from the two runs' own config snapshots, rendered as plain text. Same agent version: "No prompt change"; different case sets: a not-like-for-like warning; a run deleted meanwhile: an error state. Close only — there is no Promote.
+
+## `/agents/:id?tab=evals` — Agent Editor, Evals tab
+
+- `?tab=evals` must be on **both** the tab list and `useAgentTab`'s allowlist, or it silently falls back to Config.
+- Four tiles (recall, precision, citation, traces passed N/M) with deltas vs the previous full run, "View full dashboard" (`/eval/:agentId`), the "Eval cases N/M passing" list, **Run all evals (N)** (the case count is visible before the spend) and **New eval case**. Rows show an icon **and** text status, name, "expected N finding(s), got M" (or "never run"), a severity·category chip or `empty []`, and run / edit / delete (delete confirms, since it removes the case's run history).
+- The case editor opens from `?case=<id|new>`: Name, Input tabs Diff / PR meta, the Expected-output JSON editor with a valid/invalid badge and "Finding skeleton", the last-run line, Cancel / Run case / Save. Save and Run case are disabled while the JSON is invalid; Run case also needs a saved, unmodified case, since a run executes the stored case.
+
+## `/repos/:repoId/pulls/:number` — Turn into eval case
+
+- `FindingCard` shows **Turn into eval case** after Accept / Dismiss. It is disabled with an explanatory tooltip while the finding is undecided (the decision decides must-find vs must-not-flag). One click calls `POST /findings/:id/eval-case` and toasts with a link to the agent's Evals tab; a 409 shows the server's message naming the failed precondition. Repeating the click reports that the case already exists.

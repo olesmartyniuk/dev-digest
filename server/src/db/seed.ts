@@ -12,6 +12,7 @@ import {
   API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { TEST_QUALITY_RUBRIC } from './seed-skills.js';
+import { SECURITY_REVIEWER_EVAL_CASES } from './seed-evals.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -31,7 +32,10 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * see `docs/agent-prompts/skills/README.md` for why (it's meant to be
  * imported through the Skills Lab UI to exercise that path end to end).
  *
- * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * Also seeds the Security Reviewer's eval set (SPEC-04): 9 hand-authored cases
+ * with synthetic diffs (`seed-evals.ts`), idempotent by owner + name.
+ *
+ * Course lessons populate the other tables (conventions, memory, …) once
  * their features are built — they start empty here.
  */
 
@@ -291,6 +295,40 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .insert(t.agentSkills)
       .values({ agentId: testQualityReviewer.id, skillId: testQualityRubric.id, order: 0 })
       .onConflictDoNothing();
+  }
+
+  // ---- eval set for the Security Reviewer (SPEC-04, D6) ----
+  // Idempotent by owner + name, so re-seeding never duplicates a case.
+  const [securityReviewer] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+  if (securityReviewer) {
+    for (const c of SECURITY_REVIEWER_EVAL_CASES) {
+      const [existing] = await db
+        .select({ id: t.evalCases.id })
+        .from(t.evalCases)
+        .where(
+          and(
+            eq(t.evalCases.workspaceId, workspaceId),
+            eq(t.evalCases.ownerKind, 'agent'),
+            eq(t.evalCases.ownerId, securityReviewer.id),
+            eq(t.evalCases.name, c.name),
+          ),
+        );
+      if (existing) continue;
+      await db.insert(t.evalCases).values({
+        workspaceId,
+        ownerKind: 'agent',
+        ownerId: securityReviewer.id,
+        agentId: securityReviewer.id,
+        name: c.name,
+        inputDiff: c.input_diff,
+        inputMeta: c.input_meta,
+        expectedOutput: c.expected_output,
+        notes: c.notes,
+      });
+    }
   }
 
   return { workspaceId, userId };

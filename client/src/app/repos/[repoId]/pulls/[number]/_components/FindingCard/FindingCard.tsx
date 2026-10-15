@@ -29,6 +29,8 @@ export function FindingCard({
   defaultExpanded,
   onAction,
   pending,
+  onTurnIntoEval,
+  evalPending,
   repoFullName,
   headSha,
 }: {
@@ -37,10 +39,14 @@ export function FindingCard({
   defaultExpanded?: boolean;
   onAction?: (action: FindingActionKind, reply?: string) => void;
   pending?: boolean;
+  /** "Turn into eval case" (SPEC-04). The action renders only when this is passed. */
+  onTurnIntoEval?: () => void;
+  evalPending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
+  const tEval = useTranslations("eval");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
   const sevColor = severityColor(f.severity);
   const fileHref =
@@ -50,6 +56,10 @@ export function FindingCard({
   const accepted = !!f.accepted_at;
   const dismissed = !!f.dismissed_at;
   const muted = accepted || dismissed;
+  // The decision decides the expectation (accepted -> must find, dismissed ->
+  // must not flag), so an undecided finding has nothing to freeze yet.
+  const undecided = !accepted && !dismissed;
+  const evalHintId = `eval-case-hint-${f.id}`;
 
   return (
     <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
@@ -109,6 +119,26 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            {onTurnIntoEval && (
+              // The span carries the tooltip: a disabled button fires no hover in some browsers.
+              <span title={undecided ? tEval("turnIntoCase.disabledHint") : undefined}>
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  icon="FlaskConical"
+                  disabled={pending || evalPending || undecided}
+                  aria-describedby={undecided ? evalHintId : undefined}
+                  onClick={onTurnIntoEval}
+                >
+                  {tEval("turnIntoCase.action")}
+                </Button>
+                {undecided && (
+                  <span id={evalHintId} style={s.srOnly}>
+                    {tEval("turnIntoCase.disabledHint")}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
         </div>
       )}
