@@ -168,6 +168,15 @@ export class ReviewRepository {
     return runRepo.createAgentRun(this.db, values);
   }
 
+  /** SPEC-05: parent multi_agent_runs row + N linked agent_runs, in one transaction. */
+  createMultiAgentRunWithRuns(values: {
+    workspaceId: string;
+    prId: string;
+    agents: { id: string; provider: string | null; model: string | null }[];
+  }): Promise<{ multiAgentRunId: string; runIds: Map<string, string> }> {
+    return runRepo.createMultiAgentRunWithRuns(this.db, values);
+  }
+
   completeAgentRun(
     runId: string,
     values: {

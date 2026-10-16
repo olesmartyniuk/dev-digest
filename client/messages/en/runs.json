@@ -11,7 +11,44 @@
     "title": "Where agents disagree",
     "onlyConflicts": "Show only conflicts",
     "empty": "No conflicts — the agents agree on every flagged location.",
-    "didNotFlag": "did not flag"
+    "didNotFlag": "did not flag",
+    "reason": {
+      "security": "Not a security concern.",
+      "perf": "Not a performance concern.",
+      "test": "Not a test-quality concern.",
+      "style": "Not a style concern.",
+      "bug": "Not a correctness concern.",
+      "general": "Outside this agent's focus."
+    }
+  },
+  "configure": {
+    "title": "Configure run",
+    "step1": "Pull request",
+    "step2": "Agents to run",
+    "pickPrFirst": "Pick a pull request first",
+    "selectAll": "Select all",
+    "fanOut": "parallel fan-out",
+    "incomplete": "(incomplete)",
+    "unavailable": "n/a",
+    "runMulti": "Run multi-agent review ({count})",
+    "estTime": "Est. time",
+    "estCost": "Est. cost"
+  },
+  "results": {
+    "selected": "{count} selected agents · parallel",
+    "meta": "{count} agents · parallel · {duration} · {cost}",
+    "costIncomplete": "(cost incomplete)",
+    "configureRun": "Configure run",
+    "modeLabel": "Results layout",
+    "notFound": "Multi-agent run not found",
+    "deletedAgent": "Deleted agent",
+    "alsoFlaggedBy": "Also flagged by {names}",
+    "status": {
+      "queued": "Queued",
+      "running": "Running…",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
   },
   "tabs": {
     "noSummary": "No summary."
@@ -113,8 +150,8 @@
     "selectPr": "Select PR",
     "prItem": "#{number} · {title}",
     "view": {
-      "columns": "columns",
-      "tabs": "tabs"
+      "columns": "Columns",
+      "tabs": "Tabs"
     },
     "runAll": "Run all agents",
     "running": "Running…",

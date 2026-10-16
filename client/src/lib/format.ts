@@ -13,6 +13,17 @@ export function formatCostUsd(costUsd: number | null | undefined): string {
   return `$${costUsd.toFixed(3)}`;
 }
 
+/** Formats a run duration: "8.2s" below a minute, "1m 05s" from a minute up,
+ *  "—" when unknown (e.g. an agent with no completed runs yet). */
+export function formatDurationMs(ms: number | null | undefined): string {
+  if (ms == null) return "—";
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const totalSeconds = Math.floor(ms / 1000);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
 /** Token in→out summary (e.g. "8.2K→1.3K"). */
 export function formatTokenPair(
   tokensIn: number | null | undefined,

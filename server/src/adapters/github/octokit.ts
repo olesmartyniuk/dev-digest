@@ -1,4 +1,5 @@
 import { Octokit } from 'octokit';
+import { strFromU8, unzipSync } from 'fflate';
 import type {
   GitHubClient,
   RepoRef,
@@ -11,6 +12,7 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  WorkflowArtifact,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
@@ -346,6 +348,67 @@ export class OctokitGitHubClient implements GitHubClient {
         TIMEOUT,
       ),
     );
+  }
+
+  async listArtifacts(repo: RepoRef, namePrefix: string): Promise<WorkflowArtifact[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.actions.listArtifactsForRepo({
+            owner: repo.owner,
+            repo: repo.name,
+            per_page: 100,
+          });
+          return res.data.artifacts
+            .filter((a) => a.name.startsWith(namePrefix) && !a.expired)
+            .map((a) => ({
+              id: a.id,
+              name: a.name,
+              expired: a.expired,
+              createdAt: a.created_at ?? null,
+            }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async readArtifactFile(
+    repo: RepoRef,
+    artifactId: number,
+    fileName: string,
+    maxBytes: number,
+  ): Promise<string | null> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.actions.downloadArtifact({
+            owner: repo.owner,
+            repo: repo.name,
+            artifact_id: artifactId,
+            archive_format: 'zip',
+          });
+          const files = unzipSync(new Uint8Array(res.data as ArrayBuffer), {
+            filter: (f) => f.name === fileName && f.originalSize <= maxBytes,
+          });
+          const bytes = files[fileName];
+          return bytes ? strFromU8(bytes) : null;
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async existingPaths(repo: RepoRef, ref: string, paths: string[]): Promise<string[]> {
+    const settled = await Promise.allSettled(
+      paths.map((path) =>
+        withTimeout(
+          this.octokit.rest.repos.getContent({ owner: repo.owner, repo: repo.name, path, ref }),
+          TIMEOUT,
+        ),
+      ),
+    );
+    return paths.filter((_, i) => settled[i]?.status === 'fulfilled');
   }
 
   async getIssue(repo: RepoRef, n: number): Promise<IssueMeta> {
