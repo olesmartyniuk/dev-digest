@@ -1,9 +1,20 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
 
 // ============================================================ Observability
+
+export const multiAgentRuns = pgTable('multi_agent_runs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id')
+    .notNull()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  prId: uuid('pr_id')
+    .notNull()
+    .references(() => pullRequests.id, { onDelete: 'cascade' }),
+  ranAt: timestamp('ran_at', { withTimezone: true }).defaultNow().notNull(),
+});
 
 export const agentRuns = pgTable('agent_runs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -30,7 +41,11 @@ export const agentRuns = pgTable('agent_runs', {
   score: integer('score'),
   /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
   blockers: integer('blockers'),
-});
+  /** SPEC-05 parent; null for single/all runs. */
+  multiAgentRunId: uuid('multi_agent_run_id').references(() => multiAgentRuns.id, { onDelete: 'set null' }),
+}, (t) => ({
+  multiAgentRunIdx: index('agent_runs_multi_agent_run_id_idx').on(t.multiAgentRunId),
+}));
 
 /** Whole trace of one run as a SINGLE jsonb document. */
 export const runTraces = pgTable('run_traces', {
@@ -38,15 +53,4 @@ export const runTraces = pgTable('run_traces', {
     .primaryKey()
     .references(() => agentRuns.id, { onDelete: 'cascade' }),
   trace: jsonb('trace').notNull(),
-});
-
-export const multiAgentRuns = pgTable('multi_agent_runs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
-  prId: uuid('pr_id')
-    .notNull()
-    .references(() => pullRequests.id, { onDelete: 'cascade' }),
-  ranAt: timestamp('ran_at', { withTimezone: true }).defaultNow().notNull(),
 });

@@ -106,3 +106,11 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 ## `/repos/:repoId/pulls/:number` — Turn into eval case
 
 - `FindingCard` shows **Turn into eval case** after Accept / Dismiss. It is disabled with an explanatory tooltip while the finding is undecided (the decision decides must-find vs must-not-flag). One click calls `POST /findings/:id/eval-case` and toasts with a link to the agent's Evals tab; a 409 shows the server's message naming the failed precondition. Repeating the click reports that the case already exists.
+
+## `/multi-agent`, `/multi-agent/configure`, `/multi-agent/:runId` — Multi-Agent Review (SPEC-05)
+
+- Sidebar: **Multi-Agent Review** under WORKSPACE after Pull Requests; highlighted on any `/multi-agent*` path.
+- PR page: the **Run Review** trigger now opens the agent picker (enabled agents only, none pre-ticked, an estimated time each, **Clear**, **Run multi-agent review (N)**, **Configure agents…**). Running starts one multi-agent review (`POST /pulls/:id/review {agentIds}`) and navigates to `/multi-agent/:runId`.
+- `/multi-agent`: redirects to the latest multi-agent run (`GET /multi-agent-runs/latest`), or to `/multi-agent/configure` when none exists.
+- `/multi-agent/configure?pr=<prId>`: pick a PR, then tick agents (with per-agent time and cost estimates, **Select all**). Without `?pr=` it shows "Pick a pull request first" and the Run button is disabled. While agents are ticked the footer shows the max time and summed cost, each marked "(incomplete)" when any ticked agent has no history.
+- `/multi-agent/:runId?view=&agent=&trace=&only=` (`GET /multi-agent-runs/:id`, polled while any agent is in flight): header with PR, agent count, total time and cost; a **Where agents disagree** block (hidden unless at least two agents finished; `?only=conflicts` filters to conflicts); **Columns** (default) or **Tabs** (`?view=tabs`, `?agent=<runId>`) layouts; `?trace=<runId>` opens the existing run-trace drawer. Accept / Dismiss on a finding that several agents flagged applies to the whole overlap group.

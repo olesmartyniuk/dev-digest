@@ -39,6 +39,13 @@
   },
   "runReview": {
     "runAll": "Run all enabled agents",
+    "pickerLabel": "Pick agents to run",
+    "pickTitle": "PICK AGENTS TO RUN",
+    "clear": "Clear",
+    "runMulti": "Run multi-agent review ({count})",
+    "estimateUnavailable": "n/a",
+    "noAgents": "No agents yet — create one",
+    "createAgent": "Go to Agents",
     "configureAgents": "Configure agents…",
     "running": "Running…",
     "runReview": "Run Review",

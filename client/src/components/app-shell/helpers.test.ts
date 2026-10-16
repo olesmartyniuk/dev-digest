@@ -14,6 +14,19 @@ describe("activeKeyFor", () => {
   });
 });
 
+describe("Multi-Agent nav entry (SPEC-05)", () => {
+  it("is listed under WORKSPACE and routes to /multi-agent", () => {
+    const ws = NAV.find((g) => g.section === "WORKSPACE")!;
+    expect(ws.items.find((i) => i.key === "multi-agent")).toMatchObject({ href: "/multi-agent" });
+  });
+
+  it("highlights it on /multi-agent and every sub-path", () => {
+    expect(activeKeyFor("/multi-agent")).toBe("multi-agent");
+    expect(activeKeyFor("/multi-agent/configure")).toBe("multi-agent");
+    expect(activeKeyFor("/multi-agent/0f8fad5b-d9cb-469f-a165-70867728950e")).toBe("multi-agent");
+  });
+});
+
 describe("Eval Dashboard nav entry (L06)", () => {
   it("is listed under SKILLS LAB right after Conventions and routes to /eval", () => {
     const lab = NAV.find((g) => g.section === "SKILLS LAB")!;
