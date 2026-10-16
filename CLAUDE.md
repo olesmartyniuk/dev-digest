@@ -11,6 +11,7 @@ Prose overview → [README.md](README.md) · system detail → [docs/architectur
 | `server/` | `@devdigest/api` | Fastify API, Drizzle/Postgres, job runner, `repo-intel` indexer | 3001 |
 | `client/` | `@devdigest/web` | Next.js studio (the UI) | 3000 |
 | `reviewer-core/` | `@devdigest/reviewer-core` | Pure review engine — no I/O except an injected LLM | — |
+| `agent-runner/` | `@devdigest/agent-runner` | Bundled CI runner — the committed `dist/agent-runner.cjs` is copied into exported repos | — |
 | `e2e/` | `@devdigest/e2e` | Deterministic browser flows (agent-browser) | — |
 | `devdigest-mcp/` | `@devdigest/mcp` | MCP server (stdio) — exposes agents, review runs, findings, conventions to MCP clients over the API | — |
 | `server/src/vendor/shared` | `@devdigest/shared` | Zod contracts used by every package | — |

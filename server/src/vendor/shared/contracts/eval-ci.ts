@@ -165,6 +165,8 @@ export const AgentManifest = z.object({
   // CI gate policy (see CiFailOn) — when the posted review should BLOCK
   // (REQUEST_CHANGES + fail the check) vs just comment. Default: block on critical.
   ci_fail_on: CiFailOn.default('critical'),
+  // Agent version at export time — the manifest version recorded in the CI trace.
+  version: z.number().int().positive().nullish(),
 });
 export type AgentManifest = z.infer<typeof AgentManifest>;
 /** Caller-facing input type — `.default()` fields stay optional. */

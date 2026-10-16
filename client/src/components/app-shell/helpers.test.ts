@@ -14,6 +14,14 @@ describe("activeKeyFor", () => {
   });
 });
 
+describe("CI Runs nav entry (SPEC-05)", () => {
+  it("is listed under GLOBAL and routes to /ci-runs", () => {
+    const global = NAV.find((g) => g.section === "GLOBAL")!;
+    expect(global.items.find((i) => i.key === "ci-runs")).toMatchObject({ label: "CI Runs", href: "/ci-runs" });
+    expect(activeKeyFor("/ci-runs")).toBe("ci-runs");
+  });
+});
+
 describe("Eval Dashboard nav entry (L06)", () => {
   it("is listed under SKILLS LAB right after Conventions and routes to /eval", () => {
     const lab = NAV.find((g) => g.section === "SKILLS LAB")!;

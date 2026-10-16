@@ -162,3 +162,15 @@ Regression protection for the review agent (SPEC-04, `specs/eval-pipeline.md`). 
 | GET | `/eval-dashboard` | workspace dashboard: one card per agent that owns cases, plus recent runs across agents |
 
 Scoring is defined once in `reviewer-core/src/eval/score.ts`; a finding matches an expectation iff the normalized file paths are equal and the inclusive line ranges overlap. Boot reaping marks any `running` eval run `failed` ("Interrupted by server restart"), keeping its partial case rows.
+
+## Export to CI (SPEC-05)
+
+Exports an agent as a manifest + runner + GitHub Actions workflow, and ingests the runner's results back as CI runs (`source = 'ci'`, `pr_id = null`, so the PR feed never sees them). Contracts: `contracts/ci-export.ts` (new, both vendored copies). The repo is addressed by `repo_id` (the workspace `repos` row), never a client-supplied `owner/name`. There is **no** route that accepts a CI result from a caller: runs are only read back from the repository's own workflow artifacts.
+
+| Method | Path | Contract |
+|---|---|---|
+| POST | `/agents/:id/export-ci/preview` | body `{ repo_id, target?, post_as?, triggers? }` -> `CiPreview`: the exact files that would be committed (`path`, full `contents`, `editable`, `exists` on the default branch), `openrouter_key_ready` (the key stored in DevDigest, not the repo secret) and the frozen `agent_slug`. `409` `ci_provider_unsupported` for a non-OpenRouter agent; `422` for an unsupported target or an empty/unknown trigger list; `404` for an unknown agent or repo |
+| POST | `/agents/:id/export-ci` | body = preview body + `action: 'open_pr' \| 'files'` and an optional `workflow` (the user's edited workflow text — the ONLY file a client can override). `open_pr` commits to `devdigest/ci` and opens (or reuses) the PR "Add DevDigest CI review"; `files` makes no GitHub call. The installation is recorded only after success (`workflow_version = agents.version`). `502` `external_service_error` when GitHub rejects the commit/PR (nothing is persisted); same `409`/`422`/`404` as preview; rate-limited to 10/min |
+| GET | `/agents/:id/ci` | `AgentCiOverview`: installations (`agent_slug`, `workflow_version`, `out_of_date` = `workflow_version < agent.version`, `pr_url`, `latest_run`) and the agent's CI runs, newest first. Never calls GitHub |
+| GET | `/ci/runs` | every ingested CI run (`CiRunRow`), newest first, `source = 'ci'` only. The verdict (`succeeded` / `no_findings` / `failed`) is derived from the stored `done`/`failed` status and `findings_count` (R2). Never calls GitHub |
+| POST | `/ci/sync` | body `{ agent_id? }` (a body-less call arrives as `null`). Lists each installation's `devdigest-result-<slug>-<run_id>-<attempt>` artifacts, validates `devdigest-result.json` (`CiRunResult`: repository + agent slug must match the installation, run key must match the artifact name) and inserts `agent_runs` + `run_traces` in one transaction, idempotent on `ci_run_key`. Always `200`: a GitHub or credential failure comes back as `error` so already-ingested runs stay listed. Rate-limited to 10/min |
