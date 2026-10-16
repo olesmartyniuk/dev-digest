@@ -11,19 +11,13 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": false,
-    "declaration": false,
-    "sourceMap": true,
-    "composite": false,
-    "outDir": "dist",
+    "noEmit": true,
     "types": ["node"],
     "lib": ["ES2022"],
     "paths": {
       "@devdigest/shared": ["../server/src/vendor/shared/index.ts"],
-      "@devdigest/shared/*": ["../server/src/vendor/shared/*"],
-      "@devdigest/reviewer-core": ["../reviewer-core/src/index.ts"],
-      "@devdigest/reviewer-core/*": ["../reviewer-core/src/*"]
+      "@devdigest/reviewer-core": ["../reviewer-core/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }

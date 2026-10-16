@@ -114,3 +114,14 @@ Redirects to the first repo's PR list. With no repos, the user is sent to onboar
 - `/multi-agent`: redirects to the latest multi-agent run (`GET /multi-agent-runs/latest`), or to `/multi-agent/configure` when none exists.
 - `/multi-agent/configure?pr=<prId>`: pick a PR, then tick agents (with per-agent time and cost estimates, **Select all**). Without `?pr=` it shows "Pick a pull request first" and the Run button is disabled. While agents are ticked the footer shows the max time and summed cost, each marked "(incomplete)" when any ticked agent has no history.
 - `/multi-agent/:runId?view=&agent=&trace=&only=` (`GET /multi-agent-runs/:id`, polled while any agent is in flight): header with PR, agent count, total time and cost; a **Where agents disagree** block (hidden unless at least two agents finished; `?only=conflicts` filters to conflicts); **Columns** (default) or **Tabs** (`?view=tabs`, `?agent=<runId>`) layouts; `?trace=<runId>` opens the existing run-trace drawer. Accept / Dismiss on a finding that several agents flagged applies to the whole overlap group.
+
+## `/ci-runs` — CI Runs
+
+- Sidebar: **CI Runs** in a GLOBAL group (`vendor/ui/nav.ts`); highlighted on any `/ci-runs*` path.
+- On open (and on **Refresh**) the page calls `POST /ci/sync`, then shows `GET /ci/runs` newest first: timestamp, repository, PR, agent, verdict (+ a "blocking" chip), findings, cost (`—` when unpriced, never `$0.00`), duration and a **View** link to the job. Filters (last 7 days by default / 30 days / all time, agent, repo, status) are client-side. A sync error is a non-blocking warning above the table; a load error offers Retry; no runs shows the empty state.
+
+## `/agents/:id?tab=ci` — Agent Editor, CI tab
+
+- `?tab=ci` must be on **both** the tab list and `useAgentTab`'s allowlist.
+- Lists where the agent is deployed (repo, target, latest run chip + relative time or "no runs yet", workflow version, an "Out of date" chip when the agent changed since export, PR link), a "Fail CI on" select (saves through `PUT /agents/:id`), and the agent's CI history. **Add to CI** opens the Export Wizard on Target; **Update CI config** (enabled when the active repo has an installation) opens it on Preview. Non-OpenRouter agents see a notice and disabled buttons.
+- Export Wizard (modal, four steps): Target (GitHub Actions only; the other targets are disabled) → Preview (every generated file in full; only the workflow is editable) → Configure (triggers, expected secrets, post-as; changing them regenerates the workflow and replaces any edit) → Install (open a PR, or download a zip of exactly the previewed files).

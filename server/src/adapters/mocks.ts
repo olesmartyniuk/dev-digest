@@ -17,6 +17,7 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  WorkflowArtifact,
   GitClient,
   CloneOptions,
   UnifiedDiff,
@@ -136,6 +137,16 @@ export interface MockGitHubOptions {
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
+  /** Workflow artifacts served by listArtifacts / readArtifactFile. */
+  artifacts?: {
+    id: number;
+    name: string;
+    expired?: boolean;
+    createdAt?: string;
+    files: Record<string, string>;
+  }[];
+  /** Paths reported as existing by existingPaths. */
+  existingPaths?: string[];
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -239,6 +250,33 @@ export class MockGitHubClient implements GitHubClient {
   async findOpenPr(_repo: RepoRef, branch: string): Promise<{ url: string } | null> {
     const pr = this.openedPrs.find((p) => p.head === branch);
     return pr ? { url: 'https://github.com/mock/mock/pull/1' } : null;
+  }
+
+  async listArtifacts(_repo: RepoRef, namePrefix: string): Promise<WorkflowArtifact[]> {
+    return (this.opts.artifacts ?? [])
+      .filter((a) => a.name.startsWith(namePrefix) && !a.expired)
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        expired: a.expired ?? false,
+        createdAt: a.createdAt ?? null,
+      }));
+  }
+
+  async readArtifactFile(
+    _repo: RepoRef,
+    artifactId: number,
+    fileName: string,
+    maxBytes: number,
+  ): Promise<string | null> {
+    const text = this.opts.artifacts?.find((a) => a.id === artifactId)?.files[fileName];
+    if (text === undefined || text.length > maxBytes) return null;
+    return text;
+  }
+
+  async existingPaths(_repo: RepoRef, _ref: string, paths: string[]): Promise<string[]> {
+    const existing = new Set(this.opts.existingPaths ?? []);
+    return paths.filter((p) => existing.has(p));
   }
 
   async getIssue(_repo: RepoRef, n: number): Promise<IssueMeta> {

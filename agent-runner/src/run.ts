@@ -1,173 +1,233 @@
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import type { LLMProvider, GitHubReviewPayload, CiResultArtifact } from '@devdigest/shared';
-import { reviewPullRequest, toReviewPayload, gateTriggered, countBlockers } from '@devdigest/reviewer-core';
+import { createHash } from 'node:crypto';
+import { posix } from 'node:path';
+import {
+  countBlockers,
+  gateTriggered,
+  reviewPullRequest,
+  toReviewPayload,
+} from '@devdigest/reviewer-core';
+import { CiRunResult, CI_SLUG_RE } from '@devdigest/shared';
+import type { CiPostAs, GitHubReviewPayload, LLMProvider } from '@devdigest/shared';
+import { parseUnifiedDiff } from '../../server/src/adapters/git/diff-parser.js';
 import { loadManifest } from './manifest.js';
-import { loadSkillBodies } from './skills.js';
-import { resolvePrContext, type CiEnv } from './context.js';
-import { parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
-import { fetchPrDiff, postGithubReview, postPrComment, type FetchLike } from './github.js';
-import { buildResultArtifact } from './artifact.js';
-import { RunnerError } from './errors.js';
+import type { RunnerGitHub } from './github.js';
+import { REVIEWER_CORE_VERSION, RUNNER_VERSION } from './version.js';
 
-/**
- * `runCi` — the runner's single orchestration entry point (T8). Mirrors the
- * pipeline a local studio review runs (assemblePrompt/wrapUntrusted →
- * completeStructured → groundFindings, all INSIDE `reviewPullRequest`) so CI
- * and local stay in parity (AC-36): this file never re-implements or
- * hand-rolls any of that — it only resolves CI-specific inputs (manifest,
- * skills, diff, PR context) and hands them to the SAME reviewer-core engine
- * the studio calls, then turns the grounded result into GitHub side effects.
- *
- * Deterministic gate (AC-23): the GitHub review event + blocker count are
- * computed from `countBlockers`/`gateTriggered` + the manifest's `ci_fail_on`
- * against the GROUNDED findings — never from `review.verdict` (the model's
- * self-report), which is discarded here on purpose.
- *
- * Hard-fail (Q5): a single try/catch wraps the ENTIRE pipeline. Any failure —
- * invalid manifest (AC-20), missing skill file, unresolvable CI context,
- * diff-fetch failure, or an LLM/model-call error inside `reviewPullRequest` —
- * short-circuits to `{ exitCode: 1, artifact: null, posted: null }` before any
- * GitHub post or artifact write. Do not add per-stage catches that post partial
- * state; the whole point is that a failure anywhere upstream of "we have a
- * grounded review" produces NOTHING (no synthetic review skeleton).
- */
-
-export type PostAs = 'github_review' | 'pr_comment' | 'none';
-
-export interface RunCiDeps {
-  /** Directory containing `agents/` and `skills/` (checked-in `.devdigest/`). */
-  devdigestDir: string;
-  env: CiEnv;
-  /** Injected LLM provider — `OpenRouterProvider` in production, a stub in tests. */
-  llm: LLMProvider;
-  /** How to post the result — `'github_review' | 'pr_comment' | 'none'` (AC-24). */
-  postAs: PostAs;
-  /** Absolute path to write the `CiResultArtifact` JSON to. */
-  resultPath: string;
-  fetchImpl?: FetchLike;
-  readFile?: typeof readFileSync;
-  readDir?: typeof readdirSync;
-  writeFile?: typeof writeFileSync;
-  now?: () => number;
-  /**
-   * Override diff retrieval (tests supply a fixture diff directly instead of
-   * hitting the GitHub API). Defaults to `fetchPrDiff` via the GitHub REST API.
-   */
-  fetchDiff?: (
-    ctx: { owner: string; repo: string; prNumber: number },
-    token: string,
-    fetchImpl: FetchLike,
-  ) => Promise<string>;
+export interface RunnerDeps {
+  env: Record<string, string | undefined>;
+  /** Read a UTF-8 file; null when it does not exist. */
+  readFile(path: string): Promise<string | null>;
+  github: RunnerGitHub;
+  makeLlm(key: string): LLMProvider;
+  log(msg: string): void;
+  now(): Date;
+  args: { manifestPath: string; postAs: CiPostAs };
 }
 
-export interface RunCiSuccess {
+export interface RunOutcome {
   exitCode: number;
-  artifact: CiResultArtifact;
-  posted: { kind: PostAs; payload?: GitHubReviewPayload };
-  blockers: number;
-  gateTriggered: boolean;
-  error?: undefined;
+  result: CiRunResult | null;
 }
 
-export interface RunCiFailure {
-  exitCode: number;
-  artifact: null;
-  posted: null;
-  blockers?: undefined;
-  gateTriggered?: undefined;
-  error: string;
+const NO_RESULT = (exitCode: number): RunOutcome => ({ exitCode, result: null });
+
+/** The PR number and head repo (`owner/name`) from the Actions event payload. */
+function parseEvent(text: string | null): { number: number; headRepo: string | null } | null {
+  if (!text) return null;
+  try {
+    const e = JSON.parse(text) as {
+      pull_request?: { number?: number; head?: { repo?: { full_name?: string } | null } };
+    };
+    const pr = e.pull_request;
+    if (!pr || typeof pr.number !== 'number') return null;
+    return { number: pr.number, headRepo: pr.head?.repo?.full_name ?? null };
+  } catch {
+    return null;
+  }
 }
 
-export type RunCiResult = RunCiSuccess | RunCiFailure;
+/** Memory lines: `{ "text": string }` per line; invalid / empty lines are skipped. */
+function parseMemory(text: string | null): string[] {
+  if (!text) return [];
+  const out: string[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const j = JSON.parse(line) as { text?: unknown };
+      if (typeof j.text === 'string' && j.text.trim()) out.push(j.text);
+    } catch {
+      /* skip invalid line */
+    }
+  }
+  return out;
+}
 
-export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
-  const readFile = deps.readFile ?? readFileSync;
-  const readDir = deps.readDir ?? readdirSync;
-  const writeFile = deps.writeFile ?? writeFileSync;
-  const now = deps.now ?? Date.now;
-  const fetchImpl = deps.fetchImpl ?? fetch;
-  const fetchDiffImpl = deps.fetchDiff ?? fetchPrDiff;
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+export async function runAgent(deps: RunnerDeps): Promise<RunOutcome> {
+  const { env, log } = deps;
+  const startedAt = deps.now();
+  const repository = env.GITHUB_REPOSITORY ?? '';
+
+  // 1. Event — and the fork guard (defence in depth: the workflow already skips forks).
+  const event = parseEvent(env.GITHUB_EVENT_PATH ? await deps.readFile(env.GITHUB_EVENT_PATH) : null);
+  if (!event) {
+    log('Cannot read the pull_request event payload (GITHUB_EVENT_PATH).');
+    return NO_RESULT(1);
+  }
+  if (event.headRepo !== repository) {
+    log('skipping: PR from a fork, secrets unavailable');
+    return NO_RESULT(0);
+  }
+
+  // 2. Manifest — invalid means no LLM call and no result.
+  const manifestText = await deps.readFile(deps.args.manifestPath);
+  if (manifestText == null) {
+    log(`Manifest validation failed: file not found: ${deps.args.manifestPath}`);
+    return NO_RESULT(2);
+  }
+  const loaded = loadManifest(manifestText);
+  if (!loaded.ok) {
+    log(`Manifest validation failed: ${loaded.error}`);
+    return NO_RESULT(2);
+  }
+  const manifest = loaded.manifest;
+  const agentSlug = posix.basename(deps.args.manifestPath).replace(/\.ya?ml$/, '');
+  if (!CI_SLUG_RE.test(agentSlug)) {
+    log(`Manifest validation failed: file name "${agentSlug}" is not a valid agent slug`);
+    return NO_RESULT(2);
+  }
+
+  const runId = Number(env.GITHUB_RUN_ID ?? '0') || 1;
+  const attempt = Number(env.GITHUB_RUN_ATTEMPT ?? '1') || 1;
+  const server = env.GITHUB_SERVER_URL ?? 'https://github.com';
+  const jobUrl = `${server}/${repository}/actions/runs/${runId}/attempts/${attempt}`;
+  const failOn = manifest.ci_fail_on;
+  const skillDeps: { slug: string; sha256: string }[] = [];
+  let headSha: string | null = null;
+
+  const finish = (p: Partial<CiRunResult> & Pick<CiRunResult, 'status'>): CiRunResult => {
+    const finished = deps.now();
+    return CiRunResult.parse({
+      findings_count: 0,
+      cost_usd: null,
+      duration_ms: finished.getTime() - startedAt.getTime(),
+      agent: manifest.name,
+      version: String(manifest.version ?? ''),
+      pr_number: event.number,
+      blockers: 0,
+      agent_slug: agentSlug,
+      repository,
+      job_url: jobUrl,
+      github_run_id: runId,
+      github_run_attempt: attempt,
+      model: manifest.model,
+      manifest_version: manifest.version ?? null,
+      commit_sha: headSha,
+      dependencies: {
+        skills: skillDeps,
+        runner_version: RUNNER_VERSION,
+        reviewer_core_version: REVIEWER_CORE_VERSION,
+      },
+      finished_at: finished.toISOString(),
+      ...p,
+    });
+  };
+  const failed = (error: string): RunOutcome => {
+    log(`DevDigest run failed: ${error}`);
+    return { exitCode: 1, result: finish({ status: 'failed', error: error.slice(0, 2000) }) };
+  };
+
+  // 3. Skills + memory.
+  const root = posix.dirname(posix.dirname(deps.args.manifestPath));
+  const skillBodies: string[] = [];
+  for (const slug of manifest.skills) {
+    const path = `${root}/skills/${slug}.md`;
+    const body = await deps.readFile(path);
+    if (body == null) return failed(`skill file not found: ${path}`);
+    skillBodies.push(body);
+    skillDeps.push({ slug, sha256: sha256(body) });
+  }
+  const memory = parseMemory(await deps.readFile(`${root}/memory.jsonl`));
+
+  // 4. Key.
+  const key = env.OPENROUTER_API_KEY;
+  if (!key) return failed('OPENROUTER_API_KEY secret is not set');
 
   try {
-    // 1. Load + validate the manifest BEFORE it is used for anything (AC-20).
-    const manifest = loadManifest(deps.devdigestDir, { readFile, readDir });
-    const skills = loadSkillBodies(deps.devdigestDir, manifest.skills, readFile);
+    // 5. Diff + PR.
+    const pull = await deps.github.getPull(repository, event.number);
+    headSha = /^[0-9a-f]{40}$/.test(pull.headSha) ? pull.headSha : null;
+    const diff = parseUnifiedDiff(await deps.github.getDiff(repository, event.number));
 
-    // 2. Resolve CI context (PR number/title/body/repo) from env + event payload.
-    const ctx = resolvePrContext(deps.env, readFile);
-
-    const githubToken = deps.env.GITHUB_TOKEN;
-    if (deps.postAs !== 'none' && !githubToken) {
-      throw new RunnerError(`GITHUB_TOKEN is required to post as '${deps.postAs}'`);
-    }
-
-    // 3. Assemble the diff from the CI context. Strip DevDigest's own exported
-    //    artifacts (`.devdigest/**`, the generated workflow) BEFORE parse: the
-    //    minified runner bundle would otherwise fail the whole review with a
-    //    GitHub 422 "diff too large", and reviewing our own config is noise.
-    const rawDiff = await fetchDiffImpl(ctx, githubToken ?? '', fetchImpl);
-    const diff = parseUnifiedDiff(stripIgnoredFiles(rawDiff));
-
-    // 4. Run the SAME engine the studio uses. `reviewPullRequest` internally
-    //    calls `assemblePrompt`/`wrapUntrusted` (diff → `<untrusted
-    //    source="diff">`, prDescription → `<untrusted source="pr-description">`,
-    //    AC-21) and the mandatory `groundFindings()` gate (AC-22: an all-dropped
-    //    result is a valid zero-finding review, not an error — it flows through
-    //    normally below).
-    const start = now();
+    // 6. Review.
     const outcome = await reviewPullRequest({
       systemPrompt: manifest.system_prompt,
       model: manifest.model,
       diff,
-      llm: deps.llm,
+      llm: deps.makeLlm(key),
       strategy: manifest.strategy,
-      skills,
-      prDescription: ctx.body,
-      task: `Review PR #${ctx.prNumber}: ${ctx.title}`,
+      skills: skillBodies,
+      memory,
+      prDescription: pull.body ?? undefined,
+      task: `Review PR #${event.number}`,
+      onEvent: (e) => log(e.msg),
     });
-    const durationMs = now() - start;
+    const findings = outcome.review.findings;
 
-    // 5. Deterministic verdict/gate from GROUNDED findings + `ci_fail_on`
-    //    (AC-23) — never `outcome.review.verdict`.
-    const payload = toReviewPayload(outcome.review, {
-      failOn: manifest.ci_fail_on,
-      diff,
-      title: manifest.name,
-    });
-    const blockers = countBlockers(outcome.review.findings, manifest.ci_fail_on);
-    const triggered = gateTriggered(outcome.review.findings, manifest.ci_fail_on);
+    // 7. Gate.
+    const blockers = countBlockers(findings, failOn);
+    const gate = gateTriggered(findings, failOn);
+    const count = (s: string) => findings.filter((f) => f.severity === s).length;
 
-    // 6. Build + write the artifact before posting, so a GitHub-side posting
-    //    failure never loses the already-computed, already-grounded result.
-    const artifact = buildResultArtifact({
-      findings: outcome.review.findings,
-      costUsd: outcome.costUsd,
-      durationMs,
-      agent: manifest.name,
-      prNumber: ctx.prNumber,
-    });
-    writeFile(deps.resultPath, `${JSON.stringify(artifact, null, 2)}\n`);
-
-    // 7. Post per `post_as` (AC-24).
-    if (deps.postAs === 'github_review') {
-      await postGithubReview(ctx, githubToken as string, payload, fetchImpl);
-    } else if (deps.postAs === 'pr_comment') {
-      await postPrComment(ctx, githubToken as string, payload.body, fetchImpl);
+    // 8. Post.
+    let postError: string | null = null;
+    try {
+      if (deps.args.postAs !== 'none') {
+        const payload: GitHubReviewPayload = toReviewPayload(outcome.review, {
+          failOn,
+          diff,
+          title: manifest.name,
+        });
+        if (deps.args.postAs === 'github_review') {
+          // Actions' GITHUB_TOKEN cannot approve by default — downgrade to a comment.
+          const reviewEvent = payload.event === 'APPROVE' ? 'COMMENT' : payload.event;
+          await deps.github.postReview(
+            repository,
+            event.number,
+            { ...payload, event: reviewEvent },
+            pull.headSha,
+          );
+        } else {
+          await deps.github.postComment(repository, event.number, payload.body);
+        }
+      }
+    } catch (e) {
+      postError = `could not post results to GitHub: ${(e as Error).message}`;
     }
-    // 'none' → post nothing (exit-code only).
 
-    // 8. Exit non-zero IFF the gate triggered REQUEST_CHANGES (AC-25).
-    return {
-      exitCode: triggered ? 1 : 0,
-      artifact,
-      posted: { kind: deps.postAs, payload },
+    // 9. Result.
+    const result = finish({
+      status: postError ? 'failed' : findings.length === 0 ? 'no_findings' : 'succeeded',
+      error: postError,
+      findings_count: findings.length,
+      critical: count('CRITICAL'),
+      warning: count('WARNING'),
+      suggestion: count('SUGGESTION'),
       blockers,
-      gateTriggered: triggered,
-    };
-  } catch (err) {
-    // Hard-fail (Q5): non-zero exit, nothing posted, no artifact, no synthetic
-    // review skeleton — regardless of which stage above threw.
-    const message = err instanceof Error ? err.message : String(err);
-    return { exitCode: 1, artifact: null, posted: null, error: message };
+      cost_usd: outcome.costUsd,
+      tokens_in: outcome.tokensIn,
+      tokens_out: outcome.tokensOut,
+    });
+    if (postError) log(`DevDigest run failed: ${postError}`);
+
+    // 10. Exit code.
+    const exitCode = postError ? 1 : gate && failOn !== 'never' ? 1 : 0;
+    log(
+      `DevDigest: ${findings.length} finding(s), ${blockers} blocking under "${failOn}" -> exit ${exitCode}`,
+    );
+    return { exitCode, result };
+  } catch (e) {
+    return failed((e as Error).message || 'review failed');
   }
 }

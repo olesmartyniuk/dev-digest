@@ -17,6 +17,7 @@ import blast from './blast/routes.js';
 import brief from './brief/routes.js';
 import repoIntel from './repo-intel/routes.js';
 import evalModule from './eval/routes.js';
+import ci from './ci/routes.js';
 
 /**
  * Module registry. Each feature module is a Fastify plugin in
@@ -51,4 +52,5 @@ export const modules: Record<string, FastifyPluginAsync> = {
   multiAgent,
   repoIntel,
   eval: evalModule,
+  ci,
 };
