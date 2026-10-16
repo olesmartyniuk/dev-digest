@@ -35,7 +35,10 @@ What callers can rely on. Payload shapes are defined by the Zod contracts in `sr
 
 | Method | Path | Contract |
 |---|---|---|
-| POST | `/pulls/:id/review` | body selects one agent or all enabled agents. Returns run ids **immediately**, the review runs in the background. Neither selector supplied gives 400 |
+| POST | `/pulls/:id/review` | body selects one agent (`{agentId}`), all enabled agents (`{all:true}`) or a chosen set (`{agentIds:[uuid,…]}`, SPEC-05). Returns run ids **immediately**, the review runs in the background. Neither selector supplied gives 400. `agentIds` creates a `multi_agent_runs` parent and the response carries `multi_agent_run_id` (absent for the other forms). `agentIds` that is empty, has duplicates or non-uuid ids, or is mixed with `agentId`/`all` gives 422; an unknown agent id gives 404; no rows are created on any of these |
+| GET | `/multi-agent-runs/latest` | `{id}` of the newest multi-agent parent run in the workspace, or `{id:null}` |
+| GET | `/multi-agent-runs/:id` | one parent run: per-agent columns (status, score, findings), overlap groups, disagreement locations, totals and `cost_complete`. 404 for an unknown or cross-workspace id |
+| GET | `/multi-agent/estimates` | one entry per enabled agent: `sample_size`, `mean_duration_ms`, `mean_cost_usd` over its newest 10 `done` runs (null when unknown) |
 | GET | `/pulls/:id/reviews` | persisted reviews with findings, newest first |
 | DELETE | `/reviews/:id` | delete a review and its findings |
 | GET | `/pulls/:id/runs` | full run history, any status |

@@ -139,6 +139,45 @@ export async function createAgentRun(
   return row!.id;
 }
 
+/**
+ * SPEC-05: create the `multi_agent_runs` parent and one `running` agent_runs row
+ * per agent, atomically (all-or-nothing). Returns agentId -> runId.
+ */
+export async function createMultiAgentRunWithRuns(
+  db: Db,
+  values: {
+    workspaceId: string;
+    prId: string;
+    agents: { id: string; provider: string | null; model: string | null }[];
+  },
+): Promise<{ multiAgentRunId: string; runIds: Map<string, string> }> {
+  return db.transaction(async (tx) => {
+    const [parent] = await tx
+      .insert(t.multiAgentRuns)
+      .values({ workspaceId: values.workspaceId, prId: values.prId })
+      .returning({ id: t.multiAgentRuns.id });
+    const multiAgentRunId = parent!.id;
+    const rows = await tx
+      .insert(t.agentRuns)
+      .values(
+        values.agents.map((a) => ({
+          workspaceId: values.workspaceId,
+          agentId: a.id,
+          prId: values.prId,
+          provider: a.provider,
+          model: a.model,
+          status: 'running',
+          source: 'local' as const,
+          multiAgentRunId,
+        })),
+      )
+      .returning({ id: t.agentRuns.id, agentId: t.agentRuns.agentId });
+    const runIds = new Map<string, string>();
+    for (const r of rows) if (r.agentId) runIds.set(r.agentId, r.id);
+    return { multiAgentRunId, runIds };
+  });
+}
+
 export async function completeAgentRun(
   db: Db,
   runId: string,

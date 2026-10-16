@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, ReviewStartRequest, RunEventKind, RunTrace } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
@@ -56,6 +56,43 @@ export class ReviewService {
     throw new AppError('invalid_run_request', 'Provide agentId or all:true', 400);
   }
 
+  /**
+   * Entry point for `POST /pulls/:id/review`. The `agentIds` form creates a
+   * multi_agent_runs parent (SPEC-05); `agentId` / `all` keep the legacy path.
+   * All validation (unknown agent -> 404) happens before any row is inserted.
+   */
+  async startReview(
+    workspaceId: string,
+    prId: string,
+    body: ReviewStartRequest,
+    logger?: Logger,
+  ): Promise<{
+    runs: { run_id: string; agent_id: string; agent_name: string }[];
+    reviews: ReviewDto[];
+    multi_agent_run_id?: string;
+  }> {
+    if (body.agentIds) {
+      const targets = await this.resolveAgentIds(workspaceId, body.agentIds);
+      return this.runReview(workspaceId, prId, targets, logger, { multiAgent: true });
+    }
+    const targets = await this.resolveTargets(workspaceId, {
+      ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
+      ...(body.all !== undefined ? { all: body.all } : {}),
+    });
+    return this.runReview(workspaceId, prId, targets, logger);
+  }
+
+  /** Load every requested agent; the first miss throws 404 before any insert. */
+  private async resolveAgentIds(workspaceId: string, ids: string[]): Promise<AgentRow[]> {
+    const out: AgentRow[] = [];
+    for (const id of ids) {
+      const agent = await this.agents.getById(workspaceId, id);
+      if (!agent) throw new NotFoundError('Agent not found');
+      out.push(agent);
+    }
+    return out;
+  }
+
   /** Delete a whole review run (one agent's pass) + its findings (cascade). */
   async deleteReview(workspaceId: string, reviewId: string): Promise<boolean> {
     return this.repo.deleteReview(workspaceId, reviewId);
@@ -105,7 +142,12 @@ export class ReviewService {
     prId: string,
     targets: AgentRow[],
     logger?: Logger,
-  ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewDto[] }> {
+    opts: { multiAgent?: boolean } = {},
+  ): Promise<{
+    runs: { run_id: string; agent_id: string; agent_name: string }[];
+    reviews: ReviewDto[];
+    multi_agent_run_id?: string;
+  }> {
     const pull = await this.repo.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
     const repo = await this.repo.getRepo(pull.repoId);
@@ -116,7 +158,21 @@ export class ReviewService {
     // stream. The actual (slow) review runs in the background below.
     const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
     const jobs: { agent: AgentRow; runId: string }[] = [];
-    for (const agent of targets) {
+    let multiAgentRunId: string | undefined;
+    if (opts.multiAgent) {
+      const created = await this.repo.createMultiAgentRunWithRuns({
+        workspaceId,
+        prId,
+        agents: targets.map((a) => ({ id: a.id, provider: a.provider, model: a.model })),
+      });
+      multiAgentRunId = created.multiAgentRunId;
+      for (const agent of targets) {
+        const runId = created.runIds.get(agent.id)!;
+        runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
+        jobs.push({ agent, runId });
+      }
+    }
+    for (const agent of opts.multiAgent ? [] : targets) {
       const runId = await this.repo.createAgentRun({
         workspaceId,
         agentId: agent.id,
@@ -134,7 +190,7 @@ export class ReviewService {
       logger?.error({ prId, err: (err as Error).message }, 'review: background execution crashed');
     });
 
-    return { runs, reviews: [] };
+    return { runs, reviews: [], ...(multiAgentRunId ? { multi_agent_run_id: multiAgentRunId } : {}) };
   }
 
   private publish(runId: string, kind: RunEventKind, msg: string, data?: unknown) {

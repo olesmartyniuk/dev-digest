@@ -10,6 +10,7 @@ import conventions from './conventions/routes.js';
 import context from './context/routes.js';
 import onboarding from './onboarding/routes.js';
 import reviews from './reviews/routes.js';
+import multiAgent from './multi-agent/routes.js';
 import intent from './intent/routes.js';
 import smartDiff from './smart-diff/routes.js';
 import blast from './blast/routes.js';
@@ -47,6 +48,7 @@ export const modules: Record<string, FastifyPluginAsync> = {
   blast,
   brief,
   reviews,
+  multiAgent,
   repoIntel,
   eval: evalModule,
 };
