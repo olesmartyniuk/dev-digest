@@ -146,6 +146,14 @@ export interface CommitFilesPayload {
   files: CommitFile[];
 }
 
+/** A workflow-run artifact, as listed by the GitHub Actions API. */
+export interface WorkflowArtifact {
+  id: number;
+  name: string;
+  expired: boolean;
+  createdAt: string | null;
+}
+
 export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
@@ -167,6 +175,17 @@ export interface GitHubClient {
   commitFiles(repo: RepoRef, payload: CommitFilesPayload): Promise<{ branch: string }>;
   /** The open PR whose head is `branch`, if any (so re-publish reuses it). */
   findOpenPr(repo: RepoRef, branch: string): Promise<{ url: string } | null>;
+  /** Non-expired artifacts whose name starts with `namePrefix`, newest first (first page, ≤100). */
+  listArtifacts(repo: RepoRef, namePrefix: string): Promise<WorkflowArtifact[]>;
+  /** Download an artifact zip and return one file's UTF-8 text, or null if absent / larger than maxBytes. */
+  readArtifactFile(
+    repo: RepoRef,
+    artifactId: number,
+    fileName: string,
+    maxBytes: number,
+  ): Promise<string | null>;
+  /** Best-effort: which of `paths` exist at `ref` (404 → absent). */
+  existingPaths(repo: RepoRef, ref: string, paths: string[]): Promise<string[]>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;

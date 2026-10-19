@@ -47,6 +47,7 @@ Cross-package rules that any change must preserve. Each is observable and testab
 - **R6** Runs left `running` by a dead process are reaped on boot, before the server accepts requests. Assumes a single API instance per database.
 - **R7** Cancellation both signals the live runner and marks the row, so orphaned runs are cancellable too.
 - **R8** Each completed run writes exactly one `run_traces` document containing config, stats, prompt assembly, tool calls, raw output, and the full event log.
+- **R9** A review started with `agentIds` creates one `multi_agent_runs` parent and links every created `agent_runs` row to it in one transaction; `agentId`/`all` runs stay parentless. Grouping and conflicts are computed from persisted findings and never stored.
 
 ## Secrets
 

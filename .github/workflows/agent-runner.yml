@@ -1,0 +1,72 @@
+# agent-runner suite — the bundled CI runner (@devdigest/agent-runner).
+# The studio copies the COMMITTED agent-runner/dist/agent-runner.cjs into exported repos,
+# so this workflow also fails when that bundle is stale relative to its sources.
+# Bundling resolves zod from server/node_modules and openai from reviewer-core/node_modules,
+# hence the three installs. Uses pnpm for server + agent-runner, npm for reviewer-core.
+name: agent-runner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent-runner/**'
+      - 'server/src/vendor/shared/**'
+      - 'reviewer-core/src/**'
+      - 'server/src/adapters/git/diff-parser.ts'
+      - '.github/workflows/agent-runner.yml'
+  pull_request:
+    paths:
+      - 'agent-runner/**'
+      - 'server/src/vendor/shared/**'
+      - 'reviewer-core/src/**'
+      - 'server/src/adapters/git/diff-parser.ts'
+      - '.github/workflows/agent-runner.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-runner-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests + bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install server deps (zod + shared contracts)
+        working-directory: server
+        run: pnpm install --frozen-lockfile
+
+      - name: Install reviewer-core deps (openai + engine)
+        working-directory: reviewer-core
+        run: npm ci
+
+      - name: Install agent-runner deps
+        working-directory: agent-runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: agent-runner
+        run: pnpm typecheck
+
+      - name: Test
+        working-directory: agent-runner
+        run: pnpm test
+
+      - name: Build bundle
+        working-directory: agent-runner
+        run: pnpm build
+
+      - name: Fail on a stale committed bundle
+        run: git diff --exit-code agent-runner/dist

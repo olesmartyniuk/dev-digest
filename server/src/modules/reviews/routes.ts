@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
+import { ReviewStartRequest } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
@@ -9,7 +9,7 @@ import { ReviewService } from './service.js';
 
 /**
  * reviews module.
- *   POST   /pulls/:id/review  {agentId} | {all:true}  → run review(s); returns runs
+ *   POST   /pulls/:id/review  {agentId} | {all:true} | {agentIds:[…]}  → run review(s); returns runs
  *   GET    /runs/:id/events                            → SSE stream of RunEvent (replay-first)
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
@@ -23,24 +23,15 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
-  // Body stays a tolerant manual parse (both fields optional; empty body is OK).
+  // Body stays a tolerant manual parse (all fields optional; empty body is OK).
   app.post(
     '/pulls/:id/review',
     { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
     async (req) => {
     const { workspaceId } = await getContext(container, req);
-    const body = RunRequest.parse(req.body ?? {});
-    const targets = await service.resolveTargets(workspaceId, {
-      ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
-      ...(body.all !== undefined ? { all: body.all } : {}),
-    });
-    const { runs, reviews } = await service.runReview(
-      workspaceId,
-      req.params.id,
-      targets,
-      req.log,
-    );
-    return { pr_id: req.params.id, runs, reviews };
+    const body = ReviewStartRequest.parse(req.body ?? {});
+    const result = await service.startReview(workspaceId, req.params.id, body, req.log);
+    return { pr_id: req.params.id, ...result };
   });
 
   // ---- SSE: live run events (replay buffer first, then live; ends on done) -

@@ -1,0 +1,24 @@
+{
+  "name": "@devdigest/agent-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DevDigest CI runner — bundles reviewer-core into one CommonJS file (dist/agent-runner.cjs) that the studio copies into exported repos.",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=cjs --minify --legal-comments=none --banner:js=\"/* DevDigest agent-runner - generated bundle, do not edit. */\" --outfile=dist/agent-runner.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

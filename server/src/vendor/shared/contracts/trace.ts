@@ -72,6 +72,14 @@ export const RunStats = z.object({
 });
 export type RunStats = z.infer<typeof RunStats>;
 
+/** CI provenance: what a CI run depended on (SPEC-05 decision 13). */
+export const RunDependencies = z.object({
+  skills: z.array(z.object({ slug: z.string(), sha256: z.string() })),
+  runner_version: z.string(),
+  reviewer_core_version: z.string(),
+});
+export type RunDependencies = z.infer<typeof RunDependencies>;
+
 /** The single-document trace stored in `run_traces.trace`. */
 export const RunTrace = z.object({
   config: z.object({
@@ -81,6 +89,9 @@ export const RunTrace = z.object({
     model: z.string(),
     pr: z.number().int().nullish(),
     source: z.enum(['local', 'ci']).default('local'),
+    manifest_version: z.number().int().nullish(),
+    commit_sha: z.string().nullish(),
+    dependencies: RunDependencies.nullish(),
   }),
   stats: RunStats,
   prompt_assembly: PromptAssembly,
